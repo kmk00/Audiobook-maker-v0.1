@@ -5,7 +5,7 @@ import shutil
 
 from db.database import get_db
 from db.models import Character
-from db.schemas import CharacterCreate, CharacterResponse
+from db.schemas import CharacterCreate, CharacterResponse, CharacterUpdate
 
 router = APIRouter(
     prefix="/characters",
@@ -79,3 +79,34 @@ def delete_characters(db: Session = Depends(get_db)):
     os.makedirs(base_dir, exist_ok=True)
     
     return {"detail": "Wszystkie postacie i ich foldery zostały pomyślnie usunięte."}
+
+@router.put("/{character_id}", response_model=CharacterResponse)
+def update_character(character_id: int, character_update: CharacterUpdate, db: Session = Depends(get_db)):
+    
+    db_character = db.query(Character).filter(Character.id == character_id).first()
+    if not db_character:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+
+    if character_update.name and character_update.name != db_character.name:
+        existing = db.query(Character).filter(Character.name == character_update.name).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Character with this name already exists")
+            
+        old_safe_name = db_character.name.replace(" ", "_").lower()
+        old_folder_path = f"characters/{db_character.id}_{old_safe_name}"
+        
+        new_safe_name = character_update.name.replace(" ", "_").lower()
+        new_folder_path = f"characters/{db_character.id}_{new_safe_name}"
+        
+        if os.path.exists(old_folder_path):
+            os.rename(old_folder_path, new_folder_path)
+
+
+    update_data = character_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_character, key, value)
+
+    db.commit()
+    db.refresh(db_character)
+    return db_character
