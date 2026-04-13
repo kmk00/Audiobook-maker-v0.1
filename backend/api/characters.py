@@ -22,12 +22,20 @@ def get_characters(db: Session = Depends(get_db)):
     
     return characters
 
+@router.get("/{character_id}", response_model=CharacterResponse)
+def get_single_character(character_id: int, db: Session = Depends(get_db)):
+    character = db.query(Character).filter(Character.id == character_id).first()
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    return character
+
 @router.post("/", response_model=CharacterResponse)
 def create_character(character: CharacterCreate, db: Session = Depends(get_db)):
     
     if db.query(Character).filter(Character.name == character.name).first():
         raise HTTPException(status_code=400, detail="Character already exists")
-    
 
     db_character = Character(**character.model_dump())
     db.add(db_character)
@@ -37,12 +45,25 @@ def create_character(character: CharacterCreate, db: Session = Depends(get_db)):
     folder_path = f"characters/{db_character.id}_{safe_name}"
     os.makedirs(folder_path, exist_ok=True)
     
-
-    db_character.voice_dir = folder_path 
-    
     db.commit()
     db.refresh(db_character)
     return db_character
+
+@router.delete("/{character_id}")
+def delete_single_character(character_id: int, db: Session = Depends(get_db)):
+    character = db.query(Character).filter(Character.id == character_id).first()
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+        
+    safe_name = character.name.replace(" ", "_").lower()
+    folder_path = f"characters/{character.id}_{safe_name}"
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+        
+    db.delete(character)
+    db.commit()
+    return {"detail": f"Character {character_id} deleted successfully."}
 
 @router.delete("/")
 def delete_characters(db: Session = Depends(get_db)):
