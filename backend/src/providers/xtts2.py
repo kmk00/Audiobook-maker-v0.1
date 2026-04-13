@@ -1,25 +1,8 @@
 import os
 import torch
-import torchaudio
-import soundfile as sf
-
-# --- PyTorch 2.6 compatibility patch ---
-_original_torch_load = torch.load
-def _patched_torch_load(*args, **kwargs):
-    kwargs.setdefault("weights_only", False)
-    return _original_torch_load(*args, **kwargs)
-torch.load = _patched_torch_load
-
-# --- Patch torchaudio.load to use soundfile directly ---
-def _patched_torchaudio_load(filepath, *args, **kwargs):
-    data, sample_rate = sf.read(filepath, dtype="float32", always_2d=True)
-    return torch.tensor(data.T), sample_rate
-
-torchaudio.load = _patched_torchaudio_load
-# -------------------------------------------------------
 
 
-from TTS.api import TTS
+
 from src.base_provider import BaseTTSProvider
 from src.schemas import TTSRequest, TTSResult
 
@@ -30,6 +13,26 @@ class XTTS2Provider(BaseTTSProvider):
         return "coqui_xtts_v2"
 
     def setup(self):
+        from TTS.api import TTS
+        import torchaudio
+        import soundfile as sf
+        
+        # --- PyTorch 2.6 compatibility patch ---
+        _original_torch_load = torch.load
+        def _patched_torch_load(*args, **kwargs):
+            kwargs.setdefault("weights_only", False)
+            return _original_torch_load(*args, **kwargs)
+        torch.load = _patched_torch_load
+
+        # --- Patch torchaudio.load to use soundfile directly ---
+        def _patched_torchaudio_load(filepath, *args, **kwargs):
+            data, sample_rate = sf.read(filepath, dtype="float32", always_2d=True)
+            return torch.tensor(data.T), sample_rate
+
+        torchaudio.load = _patched_torchaudio_load
+        # -------------------------------------------------------
+
+
         
         print(f"[{self.provider_name}] Checking for GPU availability...")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"

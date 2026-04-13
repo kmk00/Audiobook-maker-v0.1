@@ -1,4 +1,4 @@
-from typing import Dict, Type, Optional
+from typing import Callable, Dict, Type, Optional
 from uuid import uuid4
 import os
 
@@ -6,6 +6,7 @@ from src.base_provider import BaseTTSProvider
 from src.schemas import TTSRequest, TTSResult
 
 from src.providers.xtts2 import XTTS2Provider
+from src.providers.qwen_tts import QwenTTSProvider
 
 class TTSManager:
     def __init__(self, output_dir: str = "audiobooks/audio") -> None:
@@ -15,8 +16,13 @@ class TTSManager:
         self._providers: Dict[str, BaseTTSProvider] = {}
         
         # Declare available providers without instantiating them yet
-        self._available_providers: Dict[str, Type[BaseTTSProvider]] = {
-            "coqui_xtts_v2": XTTS2Provider,
+        self._available_providers: Dict[str, Callable[[Optional[dict]], BaseTTSProvider]] = {
+            "coqui_xtts_v2": lambda config: XTTS2Provider(config=config),
+            "qwen_design": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "provider_name": "qwen_design"}),
+            
+            "qwen_custom": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "provider_name": "qwen_custom"}),
+            
+            "qwen_base": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "provider_name": "qwen_base"}),
         }
         
         self.active_provider: Optional[str] = None
@@ -27,9 +33,9 @@ class TTSManager:
             raise ValueError(f"Provider '{provider_name}' is not available. Available providers: {list(self._available_providers.keys())}")
         
         if provider_name not in self._providers:
-            providers =self._available_providers[provider_name]
-            self._providers[provider_name] = providers(config=config)
-            print(f"Provider '{provider_name}' reloaded successfully.")
+            provider_factory = self._available_providers[provider_name]
+            self._providers[provider_name] = provider_factory(config)
+            print(f"Provider '{provider_name}' loaded successfully.")
             
         self.active_provider = provider_name
         print(f"Provider '{provider_name}' loaded and set as active provider.")

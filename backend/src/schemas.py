@@ -4,8 +4,8 @@ from typing import Optional
 class TTSRequest(BaseModel):
 
     text: str = Field(..., description="The text to be converted to speech")
-    voice_path: str = Field(..., description="Path to the voice file to be used for synthesis")
-
+    
+    voice_path: Optional[str] = Field(default=None, description="Path to the voice file to be used for synthesis")
     voice_id: Optional[int] = Field(default=None, description="ID of the character voice to use for synthesis")
     voice_prompt: Optional[str] = Field(default=None, description="Optional prompt to guide the voice synthesis")
 
