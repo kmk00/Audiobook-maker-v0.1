@@ -4,4 +4,5 @@ requirements_bk.txt
 tests
 audiobooks/testy
 audiobooks/tested
+audiobooks/audio
 requrement_xtts_worker.txt

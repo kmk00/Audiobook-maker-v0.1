@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from db.database import Base, engine
 
 from db import models
-from api import characters
+from api import characters, tts
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,7 +20,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/audio", StaticFiles(directory="audiobooks/audio"), name="audio")
+
 app.include_router(characters.router)
+app.include_router(tts.router)
 
 @app.get("/")
 async def root():

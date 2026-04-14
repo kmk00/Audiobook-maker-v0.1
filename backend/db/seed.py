@@ -23,31 +23,32 @@ def seed_characters():
     dummy_characters = [
         {
             "name": "Lektor", 
-            "description": "Lektor Domyślny",
-            "voice_path": "lektor.mp3",
-            "avatar_path": "lektor.jpg",
-            "voice_prompt": "Spokojny, głęboki męski głos idealny do narracji."
+            "provider": "coqui_xtts_v2", # Lektor będzie zawsze używał klonowania w XTTS
+            "description": "Lektor Domyślny - idealny do czytania książek.",
+            "voice_prompt": ""
         },
         {
             "name": "Młoda Bohaterka",
-            "voice_path": "Emmy.mp3",
-            "avatar_path": "Emmy.jpg",
+            "provider": "qwen_design", # Bohaterka będzie tworzona opisem przez Qwena
+            "description": "Energiczny, młody głos kobiecy.",
+            "voice_prompt": "female, young, high energy, clear voice, cheerful"
         },
         {
             "name": "Mroczny Złoczyńca", 
+            "provider": "omnivoice", # Złoczyńca będzie tworzony opisem przez OmniVoice
             "description": "Niski, powolny i chropowaty głos.",
+            "voice_prompt": "male, low pitch, raspy, slow speaking rate, serious, dark"
         }
     ]
 
     for data in dummy_characters:
-
         char = Character(
             name=data["name"],
-            description=data.get("description", None),
-            voice_path=data.get("voice_path", "default_voice.mp3"),
-            avatar_path=data.get("avatar_path", "default_avatar.jpg"),
-            voice_prompt=data.get("voice_prompt", None),
-            
+            provider=data["provider"], # <--- Dodajemy przypisanie przy tworzeniu
+            description=data.get("description", ""),
+            voice_path="",  
+            avatar_path="", 
+            voice_prompt=data.get("voice_prompt", ""),
         )
         db.add(char)
         db.flush() 

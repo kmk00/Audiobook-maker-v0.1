@@ -5,6 +5,7 @@ from datetime import datetime
 # --- Character ---
 class CharacterBase(BaseModel):
     name: str
+    provider: str
     voice_path: str
     description: Optional[str] = None
     voice_prompt: Optional[str] = None
