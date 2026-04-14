@@ -7,7 +7,9 @@ from src.schemas import TTSRequest, TTSResult
 
 # from src.providers.xtts2 import XTTS2Provider
 from providers.xtts_network import XTTSNetworkProvider
-from src.providers.qwen_tts import QwenTTSProvider
+# from src.providers.qwen_tts import QwenTTSProvider
+from providers.qwentts_network import QwenNetworkProvider
+from providers.omnivoice_network import OmniVoiceNetworkProvider
 
 class TTSManager:
     def __init__(self, output_dir: str = "audiobooks/audio") -> None:
@@ -19,11 +21,12 @@ class TTSManager:
         # Declare available providers without instantiating them yet
         self._available_providers: Dict[str, Callable[[Optional[dict]], BaseTTSProvider]] = {
             "coqui_xtts_v2": lambda config: XTTSNetworkProvider(config=config),
-            "qwen_design": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "provider_name": "qwen_design"}),
             
-            "qwen_custom": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "provider_name": "qwen_custom"}),
+            "qwen_design": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "provider_name": "qwen_design"}),
+            "qwen_custom": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "provider_name": "qwen_custom"}),            
+            "qwen_base": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "provider_name": "qwen_base"}),
             
-            "qwen_base": lambda config: QwenTTSProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "provider_name": "qwen_base"}),
+            "omnivoice": lambda config: OmniVoiceNetworkProvider(config=config),
         }
         
         self.active_provider: Optional[str] = None
