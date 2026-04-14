@@ -3,3 +3,4 @@ __pycache__/
 requirements_bk.txt
 tests
 audiobooks/testy
+audiobooks/tested
