@@ -53,7 +53,7 @@
 }
 
 html {
-  overflow-y: hidden;
+  overflow-x: hidden;
 }
 
 body {
@@ -73,7 +73,7 @@ button {
   grid-template-columns: 1fr 4px 1fr;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 10px;
+  padding: 20px 20px;
   border-bottom: 3px solid var(--border-color);
   background-color: var(--col-lbrown);
 }
