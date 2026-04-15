@@ -8,7 +8,7 @@ class Character(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     provider = Column(String, nullable=False, default="omnivoice")
-    voice_path = Column(String, nullable=False)
+    voice_path = Column(String)
     description = Column(Text)
     avatar_path = Column(String)
     voice_prompt = Column(String)
