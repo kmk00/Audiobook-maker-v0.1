@@ -1,115 +1,125 @@
 <template>
   <div class="character-view">
-    <div class="form-container">
-      <div class="diamond-avatar large">
-        <div class="avatar-inner">
-          <img src="/emilia.png" alt="Emilia" />
-        </div>
-      </div>
+    <form class="character-form" action="">
+      <label for="avatar"
+        >Wybierz Avatar
+        <input type="file" name="avatar" id="avatar" required />
+      </label>
 
-      <input type="text" class="custom-input" value="EMILIA" />
+      <label for="character-name"
+        >Nazwa Postaci
 
-      <textarea class="custom-input large-input" placeholder="OPIS"></textarea>
+        <input type="text" name="character-name" id="character-name" required />
+      </label>
 
-      <div class="toggle-buttons">
-        <button class="nav-btn active">GENEROWANIE</button>
-        <button class="nav-btn">KLONOWANIE</button>
-      </div>
+      <label for="description"
+        >Opis
+        <textarea name="description" id="description"></textarea>
+      </label>
 
-      <textarea
-        class="custom-input large-input"
-        placeholder="PROMPT"
-      ></textarea>
+      <label for="provider"
+        >Wybierz Model
 
-      <button class="save-btn diamond-btn">
-        <span>💾</span>
-      </button>
-    </div>
+        <select name="provider" id="provider" required>
+          <option value="">Wybierz Model</option>
+          <option value="coqui_xtts_v2">XTTS_V2</option>
+          <option value="qwen_design">QWEN DESIGN</option>
+          <option value="qwen_custom">QWEN CUSTOM</option>
+          <option value="qwen_base">QWEN BASE</option>
+          <option value="omnivoice">OMNIVOICE</option>
+        </select>
+      </label>
+
+      <label for="text-to-generate"
+        >Tekst do wygenerowania
+
+        <textarea name="text-to-generate" id="text-to-generate"></textarea>
+      </label>
+
+      <label for="voice-to-clone"
+        >Wybierz głos do klonowania
+
+        <input
+          type="file"
+          name="voice-to-clone"
+          id="voice-to-clone"
+          accept="audio/*"
+        />
+      </label>
+
+      <label for="character-name"
+        >Prompt dla głosu
+
+        <input type="text" name="character-name" id="character-name" required />
+      </label>
+
+      <input type="submit" value="Wygeneruj głos" />
+      <input type="submit" value="Zapisz Postać" />
+    </form>
   </div>
 </template>
 
 <style scoped>
 .character-view {
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent,
-    transparent 50px,
-    rgba(0, 0, 0, 0.03) 50px,
-    rgba(0, 0, 0, 0.03) 100px
-  );
+  max-width: 500px;
+  margin: auto;
 }
 
-.form-container {
+.character-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  width: 500px;
+  margin: 40px auto;
 }
 
-.custom-input {
-  width: 100%;
-  padding: 15px;
-  border: 2px solid var(--border-color);
-  background-color: var(--btn-bg);
-  border-radius: 10px;
+.character-form input,
+.character-form textarea,
+.character-form select {
+  border-radius: 14px;
+  padding: 10px 15px;
+  border: 2px solid var(--col-brown);
+  background-color: var(--col-light);
+  text-decoration: none;
+  color: var(--border-color);
+  font-weight: bold;
+  cursor: pointer;
   text-align: center;
-  font-family: inherit;
+  font-family: var(--font-bitroad);
+  font-size: 1.2rem;
+  letter-spacing: 1px;
 }
 
-.large-input {
-  height: 100px;
+.character-form label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.character-form textarea {
+  height: 200px;
+  max-width: 100%;
   resize: none;
 }
 
-.toggle-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.nav-btn.active {
-  background-color: #fff;
-}
-
-/* Ponowne użycie diamentu, ale większego */
-.diamond-avatar.large {
-  width: 100px;
-  height: 100px;
-  margin-bottom: 20px;
-}
-.avatar-inner {
-  width: 100%;
-  height: 100%;
-  transform: rotate(45deg);
-  border: 2px solid var(--border-color);
-  overflow: hidden;
-}
-.avatar-inner img {
-  width: 140%;
-  height: 140%;
-  transform: rotate(-45deg) translate(-15%, -15%);
-}
-
-.save-btn {
-  width: 60px;
-  height: 60px;
-  transform: rotate(45deg);
-  background-color: var(--border-color);
+.character-form input[type="submit"] {
+  padding: 10px 20px;
+  border-radius: 14px;
   border: none;
+  background-color: var(--col-brown);
+  color: var(--col-light);
+  font-weight: bold;
   cursor: pointer;
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  text-align: center;
+  font-family: var(--font-bitroad);
+  font-size: 1.2rem;
+  letter-spacing: 1px;
 }
 
-.save-btn span {
-  transform: rotate(-45deg);
-  color: white;
-  font-size: 24px;
+.character-form input[type="submit"]:hover {
+  background-color: var(--col-orange);
+}
+
+.character-form input[type="submit"]:first-of-type {
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 </style>
