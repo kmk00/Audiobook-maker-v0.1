@@ -1,14 +1,20 @@
 <template>
   <div class="app-layout">
     <header class="top-nav">
-      <div class="nav-left"></div>
-      <div class="nav-center">
+      <div class="nav-left">
         <router-link to="/" class="nav-btn">GENEROWANIE</router-link>
         <router-link to="/postacie" class="nav-btn">POSTACIE</router-link>
         <router-link to="/tlumaczenie" class="nav-btn">TŁUMACZENIE</router-link>
       </div>
-      <div class="nav-right">
-        <button class="settings-btn">⚙️</button>
+      <div class="v-line"></div>
+      <div v-if="$route.path === '/'" class="nav-right">
+        <button class="nav-btn">BUILDER</button>
+        <button class="nav-btn space-r">LONG TEXT</button>
+        <button class="nav-btn">LEKTOR</button>
+        <button class="nav-btn">POSTACIE</button>
+      </div>
+      <div v-else-if="$route.path === '/postacie'" class="nav-right">
+        <button class="nav-btn">LISTA</button>
       </div>
     </header>
 
@@ -19,52 +25,91 @@
 </template>
 
 <style>
-/* Bazowe style pod Twój design */
+@font-face {
+  font-family: "Bitroad Mono";
+  src: url(/fonts/BitroadMono-RegularMono.ttf) format("truetype");
+}
+
+@font-face {
+  font-family: "Breite Regular";
+  src: url(/fonts/BreiteRegular.otf) format("opentype");
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url(/fonts/ClashDisplay-Variable.ttf) format("truetype");
+}
+
 :root {
-  --bg-color: #efe4d0; /* Beżowy z Twoich screenów */
-  --border-color: #3e2723; /* Ciemny brąz */
-  --btn-bg: #e3d5ba;
+  --col-orange: #d36b00;
+  --col-dark: #1a120b;
+  --col-brown: #3c2a21;
+  --col-lbrown: #d5cea3;
+  --col-light: #e5e5cb;
+
+  --font-bitroad: "Bitroad Mono", Courier, monospace;
+  --font-breite: "Breite Regular", sans-serif;
+  --font-clash: "Clash Display", sans-serif;
+}
+
+html {
+  overflow-y: hidden;
 }
 
 body {
   margin: 0;
-  background-color: var(--bg-color);
-  font-family: "Courier New", Courier, monospace; /* Zmień na swój retro font */
-  color: var(--border-color);
+  background-color: var(--col-light);
+  font-family: "Bitroad Mono", Courier, monospace;
+  color: var(--col-dark);
 }
 
-.app-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+button {
+  font-family: var(--font-bitroad);
+  cursor: pointer;
 }
 
 .top-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 4px 1fr;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
+  padding: 20px 10px;
   border-bottom: 3px solid var(--border-color);
-  background-color: var(--bg-color);
-}
-
-.nav-center {
-  display: flex;
-  gap: 10px;
+  background-color: var(--col-lbrown);
 }
 
 .nav-btn {
   padding: 5px 15px;
-  border: 2px solid var(--border-color);
-  background-color: var(--btn-bg);
+  border: 2px solid var(--col-brown);
+  background-color: var(--col-light);
   text-decoration: none;
   color: var(--border-color);
   font-weight: bold;
   cursor: pointer;
 }
 
+.v-line {
+  width: 4px;
+  background-color: var(--col-brown);
+  align-self: stretch;
+  margin: -20px 0;
+}
+
+.nav-left {
+  display: flex;
+}
+
+.nav-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.space-r {
+  margin-right: 10px;
+}
+
 .nav-btn.router-link-active {
-  background-color: #fff; /* Wyróżnienie aktywnej zakładki */
+  background-color: #fff;
 }
 
 .main-content {
