@@ -1,3 +1,7 @@
+from contextlib import asynccontextmanager
+import os
+import shutil
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,9 +12,28 @@ from api import characters, tts
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+TEMP_AUDIO_DIR = "audiobooks/audio/temp"
 
-origins = ["http://localhost:5173", "tauri://localhost"]
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Cleaning up temporary audio directory on startup ...")
+    
+    
+    if os.path.exists(TEMP_AUDIO_DIR):
+        shutil.rmtree(TEMP_AUDIO_DIR, ignore_errors=True)
+        
+    os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
+    
+    yield
+    
+    print("Cleaning up temporary audio directory on shutdown ...")
+    if os.path.exists(TEMP_AUDIO_DIR):
+        shutil.rmtree(TEMP_AUDIO_DIR, ignore_errors=True)
+    
+
+app = FastAPI(lifespan=lifespan)
+
+origins = ["http://localhost:5173", "tauri://localhost","http://localhost:1420"]
 
 app.add_middleware(
     CORSMiddleware,

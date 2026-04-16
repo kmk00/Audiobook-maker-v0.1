@@ -1,12 +1,13 @@
 <script setup>
 import { reactive, ref } from "vue";
+import { onBeforeRouteLeave } from "vue-router";
 
 const form = reactive({
   avatar: null,
   characterName: "dsadsa",
   description: "",
-  provider: "xtts_v2",
-  textToGenerate: "dsadsa",
+  provider: "",
+  textToGenerate: "Please tell me a secret, but be honest.",
 
   voiceToClone: null,
 
@@ -26,6 +27,9 @@ const form = reactive({
 });
 
 const canSave = ref(false);
+const isSaved = ref(false);
+const generatedAudioUrl = ref(null);
+const tempAudioPath = ref(null);
 
 const handleFileUpload = (field, event) => {
   form[field] = event.target.files[0];
@@ -152,7 +156,12 @@ const validateOmnivoiceForm = (mode) => {
   return true;
 };
 
-const generateVoice = () => {
+const generateVoice = async () => {
+  console.log("--- FUNKCJA DO GENEROWANIA ---", form);
+  if (validateForm()) return;
+
+  console.log("--- PO GLOBALNEJ WALIDACJI ---", form);
+
   const payload = {
     provider: form.provider,
     text: form.textToGenerate,
@@ -163,37 +172,32 @@ const generateVoice = () => {
       if (!validateXTTSForm()) return;
       payload.language = form.xttsLanguage;
       payload.voiceToClone = form.voiceToClone?.name || null;
-      console.log("--- WYSYŁANY OBIEKT DO BACKENDU XTTS ---", payload);
-      canSave.value = true;
+      console.log("--- Validacja XTTS przeszła ---", payload);
       break;
 
     case "qwen_design":
       if (!validateQwenDesignForm()) return;
       payload.language = form.qwenLanguage;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- WYSYŁANY OBIEKT DO BACKENDU QWEN ---", payload);
-      canSave.value = true;
+      console.log("--- Validacja QWEN_DESIGN przeszła ---", payload);
       break;
 
     case "qwen_custom":
       if (!validateQwenCustomForm()) return;
       payload.timbre = form.qwenTimbre;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- WYSYŁANY OBIEKT DO BACKENDU QWEN ---", payload);
-      canSave.value = true;
+      console.log("--- Validacja QWEN_CUSTOM przeszła ---", payload);
       break;
 
     case "qwen_base":
       if (!validateQwenBaseForm()) return;
       payload.voiceToClone = form.voiceToClone?.name || null;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- WYSYŁANY OBIEKT DO BACKENDU QWEN ---", payload);
-      canSave.value = true;
+      console.log("--- Validacja QWEN_BASE przeszła ---", payload);
       break;
 
     case "omnivoice":
       payload.mode = form.omnivoiceMode;
-
       if (!validateOmnivoiceForm(form.omnivoiceMode)) return;
 
       if (form.omnivoiceMode === "voice_design") {
@@ -209,14 +213,63 @@ const generateVoice = () => {
         payload.voiceToClone = form.voiceToClone?.name || null;
       }
 
-      console.log("--- WYSYŁANY OBIEKT DO BACKENDU OMNIVOICE ---", payload);
-      canSave.value = true;
+      console.log("--- Validacja OMNIVOICE przeszla ---", payload);
       break;
+  }
+
+  console.log("*********** VALIDACJA CAŁKOWITA PRZESZŁA", payload);
+
+  const formData = new FormData();
+  formData.append("text", form.textToGenerate);
+  formData.append("provider", form.provider);
+
+  if (form.voiceToClone) formData.append("voiceToClone", form.voiceToClone);
+
+  formData.append("options", JSON.stringify(payload));
+
+  console.log("*********** WYSŁANY OBIEKT DO BACKENDU", formData);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/tts/generate", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    tempAudioPath.value = data.audio_path;
+    generatedAudioUrl.value = `http://127.0.0.1:8000${data.audio_path}`;
+
+    canSave.value = true;
+    console.log("*********** ODEBRANO OD BACKENDU", data);
+  } catch (error) {
+    console.error("Błąd podczas pobierania pliku:", error);
   }
 };
 
+onBeforeRouteLeave(async (to, from, next) => {
+  if (tempAudioPath.value && !isSaved.value) {
+    try {
+      await fetch(`http://127.0.0.1:8000/tts/temp`, {
+        method: "DELETE",
+      });
+      console.log("Usunięto plik tymczasowy:", tempAudioPath.value);
+    } catch (error) {
+      console.error("Błąd podczas usuwania pliku tymczasowego:", error);
+    }
+  }
+
+  next();
+});
+
 const saveCharacter = () => {
   console.log("💾 Zapisywanie postaci ze wszystkimi danymi:", form);
+
+  isSaved.value = true;
 };
 </script>
 
@@ -467,6 +520,20 @@ const saveCharacter = () => {
           required
         ></textarea>
       </label>
+      <!-- Generated Audio -->
+      <div
+        v-if="generatedAudioUrl"
+        style="margin-bottom: 20px; text-align: center"
+      >
+        <p style="font-family: var(--font-bitroad); color: var(--col-brown)">
+          Podgląd wygenerowanego głosu:
+        </p>
+        <audio
+          :src="generatedAudioUrl"
+          controls
+          style="border-radius: 14px; border: 2px solid var(--col-brown)"
+        ></audio>
+      </div>
 
       <input type="submit" value="Wygeneruj głos" @click="generateVoice" />
       <input
