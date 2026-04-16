@@ -293,12 +293,11 @@ const saveCharacter = () => {
         </label>
         <label for="voice-prompt">
           Voice Prompt (Instrukcje)
-          <input
-            type="text"
+          <textarea
             id="voice-prompt"
             v-model="form.voicePrompt"
             placeholder="Np. old wise man speaking softly"
-          />
+          ></textarea>
           <div class="prompt-examples">
             <p class="prompt-example">Ex.</p>
             <p class="prompt-example">gender: Male</p>
