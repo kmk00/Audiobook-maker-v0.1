@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, UploadFile
 from sqlalchemy.orm import Session
 import os
 import shutil
@@ -31,23 +33,110 @@ def get_single_character(character_id: int, db: Session = Depends(get_db)):
     
     return character
 
+
+
 @router.post("/", response_model=CharacterResponse)
-def create_character(character: CharacterCreate, db: Session = Depends(get_db)):
-    
-    if db.query(Character).filter(Character.name == character.name).first():
+def create_character(name: str = Form(...),
+    provider: str = Form(...),
+    description: str = Form(None),
+    voice_prompt: str = Form(None),
+    language: str = Form(None),                    
+    provider_options: str = Form(default="{}"),    
+    temp_preview_path: str = Form(None),           
+    voice_file: UploadFile = File(None),
+    avatar_file: UploadFile = File(None),
+    db: Session = Depends(get_db)):
+    if db.query(Character).filter(Character.name == name).first():
         raise HTTPException(status_code=400, detail="Character already exists")
 
-    db_character = Character(**character.model_dump())
+    try:
+        parsed_options = json.loads(provider_options)
+    except json.JSONDecodeError:
+        parsed_options = {}
+
+    db_character = Character(
+        name=name,
+        provider=provider,
+        description=description,
+        voice_prompt=voice_prompt,
+        language=language,
+        provider_options=parsed_options,
+        voice_path="",
+        avatar_path="",
+        preview_path=""
+    )
     db.add(db_character)
-    db.flush()
+    db.flush() 
     
     safe_name = db_character.name.replace(" ", "_").lower()
-    folder_path = f"characters/{db_character.id}_{safe_name}"
+    folder_path = f"characters/{safe_name}_{db_character.id}"
     os.makedirs(folder_path, exist_ok=True)
     
+    if voice_file:
+        # Safeguard against missing filename and ensure we don't have path traversal issues
+        safe_filename = voice_file.filename or ""
+        file_extension = os.path.splitext(safe_filename)[1]
+        voice_path = f"{folder_path}/voice{file_extension}"
+        with open(voice_path, "wb") as buffer:
+            shutil.copyfileobj(voice_file.file, buffer)
+        db_character.voice_path = voice_path # type: ignore
+    elif provider in ["coqui_xtts_v2", "qwen_base"]:
+        raise HTTPException(status_code=400, detail="Ten model wymaga próbki głosu (voice_file).")
+
+    if avatar_file:
+        # Safeguard against missing filename and ensure we don't have path traversal issues
+        safe_filename = avatar_file.filename or ""
+        avatar_extension = os.path.splitext(safe_filename)[1]
+        avatar_path = f"{folder_path}/avatar{avatar_extension}"
+        with open(avatar_path, "wb") as buffer:
+            shutil.copyfileobj(avatar_file.file, buffer)
+        db_character.avatar_path = avatar_path # type: ignore
+
+    if temp_preview_path:
+        local_temp_path = temp_preview_path.replace("/audio/", "audiobooks/audio/")
+        if os.path.exists(local_temp_path):
+            final_preview_path = f"{folder_path}/preview.wav"
+            shutil.move(local_temp_path, final_preview_path)
+            db_character.preview_path = final_preview_path # type: ignore
+    
+    temp_dir = "audiobooks/audio/temp"
+    if os.path.exists(temp_dir):
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(temp_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except Exception:
+                pass 
+    
+    
+
     db.commit()
     db.refresh(db_character)
     return db_character
+
+
+
+
+
+
+# @router.post("/", response_model=CharacterResponse)
+# def create_character(character: CharacterCreate, db: Session = Depends(get_db)):
+    
+#     if db.query(Character).filter(Character.name == character.name).first():
+#         raise HTTPException(status_code=400, detail="Character already exists")
+
+#     db_character = Character(**character.model_dump())
+#     db.add(db_character)
+#     db.flush()
+    
+#     safe_name = db_character.name.replace(" ", "_").lower()
+#     folder_path = f"characters/{db_character.id}_{safe_name}"
+#     os.makedirs(folder_path, exist_ok=True)
+    
+#     db.commit()
+#     db.refresh(db_character)
+#     return db_character
 
 @router.delete("/{character_id}")
 def delete_single_character(character_id: int, db: Session = Depends(get_db)):

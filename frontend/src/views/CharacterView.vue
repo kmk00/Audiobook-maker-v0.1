@@ -266,10 +266,66 @@ onBeforeRouteLeave(async (to, from, next) => {
   next();
 });
 
-const saveCharacter = () => {
+const saveCharacter = async () => {
   console.log("💾 Zapisywanie postaci ze wszystkimi danymi:", form);
 
-  isSaved.value = true;
+  const formData = new FormData();
+  formData.append("name", form.characterName);
+  formData.append("provider", form.provider);
+
+  if (form.description) formData.append("description", form.description);
+  if (form.voicePrompt) formData.append("voice_prompt", form.voicePrompt);
+
+  let lang = "";
+  if (form.provider === "coqui_xtts_v2") lang = form.xttsLanguage;
+  if (form.provider === "qwen_design") lang = form.qwenLanguage;
+  if (lang) formData.append("language", lang);
+
+  const options = {};
+  if (form.provider === "qwen_custom") {
+    options.timbre = form.qwenTimbre;
+  } else if (form.provider === "omnivoice") {
+    options.mode = form.omnivoiceMode;
+    if (form.omnivoiceMode === "voice_design") {
+      options.gender = form.omniGender;
+      options.age = form.omniAge;
+      options.pitch = form.omniPitch;
+      options.style = form.omniStyle;
+      options.accent = form.omniAccent;
+      options.dialect = form.omniDialect;
+    }
+  }
+  formData.append("provider_options", JSON.stringify(options));
+  if (tempAudioPath.value) {
+    formData.append("temp_preview_path", tempAudioPath.value);
+  }
+
+  if (form.voiceToClone) {
+    formData.append("voice_file", form.voiceToClone);
+  }
+  if (form.avatar) {
+    formData.append("avatar_file", form.avatar);
+  }
+  try {
+    const response = await fetch("http://127.0.0.1:8000/characters/", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || "Błąd zapisu postaci na serwerze");
+    }
+
+    const savedCharacter = await response.json();
+    console.log("✅ Sukces z backendu:", savedCharacter);
+    alert(`Sukces! Postać "${savedCharacter.name}" została zapisana w bazie!`);
+
+    isSaved.value = true;
+  } catch (error) {
+    console.error("Błąd podczas zapisywania:", error);
+    alert("Nie udało się zapisać postaci: " + error.message);
+  }
 };
 </script>
 
