@@ -1,14 +1,18 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useCharacterStore } from "../stores/characterStore";
+import BuilderMode from "../components/BuilderMode.vue";
+import LongTextMode from "../components/LongTextMode.vue";
 
 const characterStore = useCharacterStore();
 
 const searchQuery = ref("");
 const isSearchOpen = ref(false);
 const activeCharacter = ref(null);
-const conversation = ref([]);
 const hoveredCharacter = ref(null);
+
+// NOWOŚĆ: Stan wybranego trybu
+const currentMode = ref("builder"); // "builder" | "longtext"
 
 onMounted(() => {
   characterStore.fetchCharacters();
@@ -32,52 +36,6 @@ const selectCharacter = (char) => {
 const toggleSearch = () => {
   isSearchOpen.value = !isSearchOpen.value;
   if (!isSearchOpen.value) searchQuery.value = "";
-};
-
-const addBlock = () => {
-  if (!activeCharacter.value) {
-    alert("Wybierz najpierw postać z listy po lewej stronie!");
-    return;
-  }
-
-  conversation.value.push({
-    id: Date.now(),
-    characterId: activeCharacter.value.id,
-    characterName: activeCharacter.value.name,
-    avatar: activeCharacter.value.avatar_path,
-    text: "",
-  });
-};
-
-const removeBlock = (index) => {
-  conversation.value.splice(index, 1);
-};
-
-const generateAudiobook = () => {
-  if (conversation.value.length === 0) {
-    alert("Dodaj przynajmniej jedną kwestię dialogową!");
-    return;
-  }
-
-  const isEmpty = conversation.value.some((block) => block.text.trim() === "");
-  if (isEmpty) {
-    alert("Niektóre kwestie są puste. Uzupełnij je przed generowaniem.");
-    return;
-  }
-
-  const payload = {
-    blocks: conversation.value.map((block) => ({
-      character_id: block.characterId,
-      text: block.text,
-    })),
-  };
-
-  console.log(
-    "🚀 GOTOWY JSON DO WYSŁANIA NA BACKEND:",
-    JSON.stringify(payload, null, 2),
-  );
-
-  alert("Sprawdź konsolę! JSON z konwersacją gotowy do wysłania.");
 };
 
 const getAvatarUrl = (path) => {
@@ -154,58 +112,34 @@ const displayCharacterName = computed(() => {
     <section class="editor-section">
       <div class="sub-nav">
         <div>
-          <button class="nav-btn active">BUILDER</button>
-          <button class="nav-btn">LONG TEXT</button>
-        </div>
-      </div>
-
-      <div class="conversation-area">
-        <div
-          class="dialogue-block"
-          v-for="(block, index) in conversation"
-          :key="block.id"
-        >
-          <div class="character-tag">
-            <div class="mini-avatar-container">
-              <div class="decor-frame mini-frame-1"></div>
-              <div class="decor-frame mini-frame-2"></div>
-
-              <div class="mini-diamond-inner">
-                <img :src="getAvatarUrl(block.avatar)" alt="" />
-              </div>
-            </div>
-            <span class="mini-name">{{ block.characterName }}</span>
-          </div>
-          <textarea
-            v-model="block.text"
-            placeholder="Wpisz kwestię dialogową..."
-            class="dialogue-box"
-          ></textarea>
-
-          <button class="delete-btn" @click="removeBlock(index)">
-            <img src="/trash.svg" alt="" />
+          <button
+            :class="['nav-btn', { active: currentMode === 'builder' }]"
+            @click="currentMode = 'builder'"
+          >
+            BUILDER
+          </button>
+          <button
+            :class="['nav-btn', { active: currentMode === 'longtext' }]"
+            @click="currentMode = 'longtext'"
+          >
+            LONG TEXT
           </button>
         </div>
-
-        <button class="add-block-btn" @click="addBlock">
-          <img src="/plus-line.svg" alt="" />
-        </button>
       </div>
-
-      <div class="generate-bottom-bar">
-        <h2>WYGENERUJ AUDIOBOOK</h2>
-        <button
-          class="generate-action-btn diamond-btn large"
-          @click="generateAudiobook"
-        >
-          <span>🎶</span>
-        </button>
-      </div>
+      <BuilderMode
+        v-if="currentMode === 'builder'"
+        :activeCharacter="activeCharacter"
+      />
+      <LongTextMode
+        v-else-if="currentMode === 'longtext'"
+        :activeCharacter="activeCharacter"
+      />
     </section>
   </div>
 </template>
 
 <style scoped>
+/* Tutaj zostają tylko style Sidebaru i głównego kontenera! */
 .generate-view {
   display: flex;
   height: 100%;
@@ -267,12 +201,10 @@ const displayCharacterName = computed(() => {
 .diamond-avatar:hover {
   transform: scale(1.05);
 }
-
 .diamond-avatar.active .avatar-inner {
   box-shadow: 0 0 15px var(--col-orange);
 }
 
-/* Wspólne style dla ramek (sidebar i builder) */
 .decor-frame {
   position: absolute;
   top: 50%;
@@ -281,15 +213,12 @@ const displayCharacterName = computed(() => {
   background: transparent;
   z-index: 1;
 }
-
-/* Ramki dla sidebaru */
 .frame-1 {
   width: 90px;
   height: 90px;
   border: 3px solid var(--col-brown);
   transform: translate(-50%, -50%) rotate(60deg);
 }
-
 .frame-2 {
   width: 90px;
   height: 90px;
@@ -297,7 +226,6 @@ const displayCharacterName = computed(() => {
   transform: translate(-50%, -50%) rotate(75deg);
 }
 
-/* --- NAPRAWA WYSRODKOWANIA OBRAZKA W SIDEBAR --- */
 .avatar-inner {
   position: relative;
   width: 95px;
@@ -311,9 +239,8 @@ const displayCharacterName = computed(() => {
 }
 
 .avatar-inner img {
-  width: 100%; /*object-fit zajmie sie reszta */
+  width: 100%;
   height: 100%;
-  /* Kontra-rotacja, object-fit: cover naprawia wysrodkowanie */
   transform: rotate(-45deg) scale(1.4);
   object-fit: cover;
 }
@@ -397,10 +324,6 @@ const displayCharacterName = computed(() => {
   justify-content: space-between;
 }
 
-.spacer {
-  flex: 1;
-}
-
 .nav-btn {
   padding: 5px 15px;
   border: 2px solid var(--col-brown);
@@ -411,201 +334,5 @@ const displayCharacterName = computed(() => {
 }
 .nav-btn.active {
   background-color: var(--col-lbrown);
-}
-
-.conversation-area {
-  flex: 1;
-  padding: 20px 40px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 30px;
-}
-
-.dialogue-box {
-  resize: none;
-}
-
-.dialogue-block {
-  margin-top: 20px;
-  width: 80%;
-  background-color: var(--col-lbrown);
-  border: 2px solid var(--col-brown);
-  border-radius: 10px;
-  position: relative;
-  padding: 30px 20px 20px 20px;
-}
-
-.character-tag {
-  position: absolute;
-  top: -25px;
-  left: -20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 15px 5px 5px;
-  font-weight: bold;
-}
-
-.mini-avatar-container {
-  width: 60px;
-  height: 60px;
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.mini-frame-1 {
-  width: 45px;
-  height: 45px;
-  border: 2px solid var(--col-brown);
-  transform: translate(-50%, -50%) rotate(60deg);
-}
-
-.mini-frame-2 {
-  width: 45px;
-  height: 45px;
-  border: 2px solid var(--col-lbrown);
-  transform: translate(-50%, -50%) rotate(75deg);
-}
-
-.mini-diamond-inner {
-  position: relative;
-  width: 45px;
-  height: 45px;
-  transform: rotate(45deg);
-  background: var(--col-brown);
-  border: 2px solid var(--col-light);
-  overflow: hidden;
-  box-sizing: border-box;
-  z-index: 2;
-}
-
-.mini-diamond-inner img {
-  width: 100%;
-  height: 100%;
-
-  transform: rotate(-45deg) scale(1.4);
-  object-fit: cover;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.mini-name {
-  font-family: var(--font-bitroad);
-  font-weight: bold;
-  color: var(--col-brown);
-  margin-top: -50px;
-  margin-left: -20px;
-}
-
-.dialogue-block textarea {
-  width: 100%;
-  min-height: 180px;
-  background: transparent;
-  border: none;
-  resize: none;
-  font-family: var(--font-breite), sans-serif;
-  font-size: 1.1rem;
-  color: var(--col-dark);
-}
-
-.dialogue-block textarea:focus {
-  outline: none;
-}
-
-.delete-btn {
-  position: absolute;
-  bottom: -38px;
-  right: -37px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 1.2rem;
-}
-
-.delete-btn img {
-  width: 60px;
-  height: 60px;
-}
-
-.delete-btn:hover {
-  animation: shrink-grow-shake 0.5s ease-in-out;
-}
-
-@keyframes shrink-grow-shake {
-  0% {
-    transform: scale(1) rotate(0deg);
-  }
-  40% {
-    transform: scale(1.2) rotate(0deg);
-  }
-  45% {
-    transform: scale(1.2) rotate(-5deg);
-  }
-  55% {
-    transform: scale(1.2) rotate(5deg);
-  }
-  65% {
-    transform: scale(1.2) rotate(-5deg);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-.add-block-btn {
-  width: 40%;
-  /* border: 2px dashed var(--col-brown); */
-  background-image: url("../assets/border-dashed.svg");
-  background-size: contain;
-  background-repeat: no-repeat;
-  border: none;
-  background-position: center;
-  padding: 10px;
-  background-color: transparent;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-}
-
-.add-block-btn:hover img {
-  animation: shrink-grow-shake 0.5s ease-in-out;
-}
-
-.add-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-weight: bold;
-  font-size: 1.2rem;
-}
-
-.generate-bottom-bar {
-  height: 120px;
-  background-color: var(--col-dark);
-  color: var(--col-light);
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 0 50px;
-  gap: 20px;
-}
-
-.generate-bottom-bar h2 {
-  font-family: var(--font-bitroad);
-  letter-spacing: 2px;
-}
-
-.diamond-btn.large {
-  width: 60px;
-  height: 60px;
-  border: 2px solid var(--col-light);
-  background: transparent;
 }
 </style>
