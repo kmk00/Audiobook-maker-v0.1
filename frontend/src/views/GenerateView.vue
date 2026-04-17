@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { useCharacterStore } from "../stores/characterStore";
 
-const characters = ref([]);
+const characterStore = useCharacterStore();
+
 const searchQuery = ref("");
 const isSearchOpen = ref(false);
 const activeCharacter = ref(null);
@@ -21,11 +23,13 @@ const fetchCharacters = async () => {
   }
 };
 
-onMounted(fetchCharacters);
+onMounted(() => {
+  characterStore.fetchCharacters();
+});
 
 const filteredCharacters = computed(() => {
-  if (!searchQuery.value) return characters.value;
-  return characters.value.filter((char) =>
+  if (!searchQuery.value) return characterStore.characters;
+  return characterStore.characters.filter((char) =>
     char.name.toLowerCase().includes(searchQuery.value.toLowerCase()),
   );
 });
