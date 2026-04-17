@@ -222,6 +222,7 @@ const displayCharacterName = computed(() => {
 .generate-view {
   display: flex;
   height: 100%;
+  padding-bottom: 78px;
 }
 
 .sidebar {

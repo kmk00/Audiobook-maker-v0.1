@@ -58,6 +58,11 @@ body {
   color: var(--col-dark);
 }
 
+.app-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
 button {
   font-family: var(--font-bitroad);
   cursor: pointer;
@@ -110,7 +115,7 @@ button {
 
 .main-content {
   flex: 1;
-  overflow: hidden;
-  height: 100vh;
+
+  height: 100%;
 }
 </style>
