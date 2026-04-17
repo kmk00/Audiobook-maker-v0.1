@@ -606,6 +606,7 @@ const saveCharacter = async () => {
 .character-view {
   max-width: 500px;
   margin: auto;
+  overflow-y: auto;
 }
 
 .character-form {
