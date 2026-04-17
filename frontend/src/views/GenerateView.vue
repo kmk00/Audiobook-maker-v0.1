@@ -173,10 +173,6 @@ const displayCharacterName = computed(() => {
           <button class="nav-btn active">BUILDER</button>
           <button class="nav-btn">LONG TEXT</button>
         </div>
-        <div>
-          <button class="nav-btn">LEKTOR</button>
-          <button class="nav-btn">POSTACIE</button>
-        </div>
       </div>
 
       <div class="conversation-area">
@@ -189,7 +185,7 @@ const displayCharacterName = computed(() => {
             <div class="mini-diamond">
               <img :src="getAvatarUrl(block.avatar)" alt="" />
             </div>
-            <span>{{ block.characterName }}</span>
+            <span class="mini-name">{{ block.characterName }}</span>
           </div>
 
           <textarea
@@ -435,6 +431,7 @@ const displayCharacterName = computed(() => {
 }
 
 .dialogue-block {
+  margin-top: 20px;
   width: 80%;
   background-color: var(--col-lbrown);
   border: 2px solid var(--col-brown);
@@ -445,31 +442,35 @@ const displayCharacterName = computed(() => {
 
 .character-tag {
   position: absolute;
-  top: -15px;
-  left: 20px;
+  top: -25px;
+  left: -20px;
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--col-light);
   padding: 5px 15px 5px 5px;
-  border: 2px solid var(--col-brown);
-  border-radius: 20px;
   font-weight: bold;
 }
 
 .mini-diamond {
-  width: 25px;
-  height: 25px;
+  width: 45px;
+  height: 45px;
   transform: rotate(45deg);
   border: 1px solid var(--col-brown);
   overflow: hidden;
+  position: relative;
 }
 
 .mini-diamond img {
   width: 150%;
   height: 150%;
   transform: rotate(-45deg) translate(-15%, -15%);
-  object-fit: cover;
+}
+
+.mini-name {
+  font-family: var(--font-bitroad);
+  font-weight: bold;
+  color: var(--col-brown);
+  margin-top: -35px;
 }
 
 .dialogue-block textarea {
