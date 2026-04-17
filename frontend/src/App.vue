@@ -7,15 +7,6 @@
         <router-link to="/tlumaczenie" class="nav-btn">TŁUMACZENIE</router-link>
       </div>
       <div class="v-line"></div>
-      <div v-if="$route.path === '/'" class="nav-right">
-        <button class="nav-btn">BUILDER</button>
-        <button class="nav-btn space-r">LONG TEXT</button>
-        <button class="nav-btn">LEKTOR</button>
-        <button class="nav-btn">POSTACIE</button>
-      </div>
-      <div v-else-if="$route.path === '/postacie'" class="nav-right">
-        <button class="nav-btn">LISTA</button>
-      </div>
     </header>
 
     <main class="main-content">
