@@ -11,13 +11,15 @@ class Character(Base):
     
     description = Column(String, nullable=True)
     voice_prompt = Column(String, nullable=True)
-    voice_path = Column(String, nullable=True) # Oryginalny plik do klonowania
+    voice_path = Column(String, nullable=True) 
     avatar_path = Column(String, nullable=True)
     
-    # --- NOWE POLA ---
     language = Column(String, nullable=True)
-    preview_path = Column(String, nullable=True) # Ścieżka do preview.wav
-    provider_options = Column(JSON, default={})  # Tu wrzucimy atrybuty Omnivoice, Timbre itd.
+    preview_path = Column(String, nullable=True) 
+    provider_options = Column(JSON, default={})  
+    
+    category = Column(String, nullable=True)
+    tags = Column(JSON, default=[])
     
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

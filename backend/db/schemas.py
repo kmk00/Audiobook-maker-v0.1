@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 # --- Character ---
@@ -15,6 +15,8 @@ class CharacterBase(BaseModel):
     language: Optional[str] = None
     preview_path: Optional[str] = None
     provider_options: Optional[Dict[str, Any]] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = []
 
 class CharacterCreate(CharacterBase):
     pass

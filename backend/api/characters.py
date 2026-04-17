@@ -42,7 +42,9 @@ def create_character(name: str = Form(...),
     voice_prompt: str = Form(None),
     language: str = Form(None),                    
     provider_options: str = Form(default="{}"),    
-    temp_preview_path: str = Form(None),           
+    temp_preview_path: str = Form(None), 
+    category: str = Form(None),
+    tags: str = Form(default="[]"),
     voice_file: UploadFile = File(None),
     avatar_file: UploadFile = File(None),
     db: Session = Depends(get_db)):
@@ -53,6 +55,13 @@ def create_character(name: str = Form(...),
         parsed_options = json.loads(provider_options)
     except json.JSONDecodeError:
         parsed_options = {}
+        
+    try:
+        parsed_tags = json.loads(tags)
+        if not isinstance(parsed_tags, list):
+            parsed_tags = []
+    except json.JSONDecodeError:
+        parsed_tags = []
 
     db_character = Character(
         name=name,
@@ -61,6 +70,8 @@ def create_character(name: str = Form(...),
         voice_prompt=voice_prompt,
         language=language,
         provider_options=parsed_options,
+        category=category,
+        tags=parsed_tags,
         voice_path="",
         avatar_path="",
         preview_path=""

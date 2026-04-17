@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from "vue";
+import { reactive, ref, computed } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { useCharacterStore } from "../stores/characterStore";
 
@@ -8,6 +8,8 @@ const characterStore = useCharacterStore();
 const form = reactive({
   avatar: null,
   characterName: "dsadsa",
+  category: "",
+  tags: [],
   description: "",
   provider: "",
   textToGenerate: "Please tell me a secret, but be honest.",
@@ -33,6 +35,37 @@ const canSave = ref(false);
 const isSaved = ref(false);
 const generatedAudioUrl = ref(null);
 const tempAudioPath = ref(null);
+const tagInput = ref("");
+
+const availableTags = computed(() => {
+  const allTags = new Set();
+  characterStore.characters.forEach((char) => {
+    if (char.tags && Array.isArray(char.tags)) {
+      char.tags.forEach((tag) => allTags.add(tag));
+    }
+  });
+  return Array.from(allTags);
+});
+
+const suggestedTags = computed(() => {
+  if (!tagInput.value) return [];
+  const lowerInput = tagInput.value.toLowerCase();
+  return availableTags.value.filter(
+    (tag) => tag.toLowerCase().includes(lowerInput) && !form.tags.includes(tag),
+  );
+});
+
+const addTag = (specificTag = null) => {
+  const newTag = specificTag || tagInput.value.trim();
+  if (newTag && !form.tags.includes(newTag)) {
+    form.tags.push(newTag);
+  }
+  tagInput.value = "";
+};
+
+const removeTag = (index) => {
+  form.tags.splice(index, 1);
+};
 
 const handleFileUpload = (field, event) => {
   form[field] = event.target.files[0];
@@ -278,6 +311,8 @@ const saveCharacter = async () => {
 
   if (form.description) formData.append("description", form.description);
   if (form.voicePrompt) formData.append("voice_prompt", form.voicePrompt);
+  if (form.category) formData.append("category", form.category);
+  formData.append("tags", JSON.stringify(form.tags));
 
   let lang = "";
   if (form.provider === "coqui_xtts_v2") lang = form.xttsLanguage;
@@ -355,6 +390,56 @@ const saveCharacter = async () => {
           v-model="form.characterName"
           required
         />
+      </label>
+
+      <label for="category">
+        Kategoria (np. Tytuł książki)
+        <input
+          type="text"
+          id="category"
+          v-model="form.category"
+          placeholder="Zostaw puste, jeśli brak"
+        />
+      </label>
+
+      <label>
+        Tagi postaci
+        <div class="tags-container">
+          <div class="selected-tags" v-if="form.tags.length">
+            <span
+              class="tag-pill"
+              v-for="(tag, index) in form.tags"
+              :key="index"
+            >
+              {{ tag }}
+              <button class="remove-tag-btn" @click.prevent="removeTag(index)">
+                ×
+              </button>
+            </span>
+          </div>
+
+          <input
+            type="text"
+            v-model="tagInput"
+            @keydown.enter.prevent="addTag()"
+            @keydown.space.prevent="addTag()"
+            placeholder="Wpisz tag i wciśnij Enter/Spację..."
+          />
+
+          <div class="suggestions-box" v-if="suggestedTags.length">
+            <p>Podpowiedzi:</p>
+            <div class="suggestions-list">
+              <span
+                class="suggestion-pill"
+                v-for="tag in suggestedTags"
+                :key="tag"
+                @click="addTag(tag)"
+              >
+                + {{ tag }}
+              </span>
+            </div>
+          </div>
+        </div>
       </label>
 
       <label for="description">
@@ -688,5 +773,73 @@ const saveCharacter = async () => {
 
 .character-form input[type="submit"]:disabled:hover {
   background-color: var(--col-brown);
+}
+
+.tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 5px;
+}
+
+.tag-pill {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remove-tag-btn {
+  background: none;
+  border: none;
+  color: var(--col-orange);
+  cursor: pointer;
+  font-weight: bold;
+  padding: 0;
+  font-size: 1.1rem;
+}
+
+.suggestions-box {
+  background-color: rgba(0, 0, 0, 0.05);
+  border: 1px dashed var(--col-brown);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 0.9rem;
+}
+
+.suggestions-box p {
+  margin: 0 0 8px 0;
+  color: var(--col-brown);
+}
+
+.suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion-pill {
+  background-color: transparent;
+  color: var(--col-brown);
+  border: 1px solid var(--col-brown);
+  padding: 4px 10px;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-pill:hover {
+  background-color: var(--col-brown);
+  color: var(--col-light);
 }
 </style>
