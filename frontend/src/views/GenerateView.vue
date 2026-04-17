@@ -176,17 +176,19 @@ const displayCharacterName = computed(() => {
             </div>
             <span class="mini-name">{{ block.characterName }}</span>
           </div>
-
           <textarea
             v-model="block.text"
             placeholder="Wpisz kwestię dialogową..."
+            class="dialogue-box"
           ></textarea>
 
-          <button class="delete-btn" @click="removeBlock(index)">🗑️</button>
+          <button class="delete-btn" @click="removeBlock(index)">
+            <img src="/trash.svg" alt="" />
+          </button>
         </div>
 
         <button class="add-block-btn" @click="addBlock">
-          <div class="add-icon">+</div>
+          <img src="/plus-line.svg" alt="" />
         </button>
       </div>
 
@@ -204,7 +206,6 @@ const displayCharacterName = computed(() => {
 </template>
 
 <style scoped>
-/* --- STARE STYLE (ZOSTAJA BEZ ZMIAN) --- */
 .generate-view {
   display: flex;
   height: 100%;
@@ -422,6 +423,10 @@ const displayCharacterName = computed(() => {
   gap: 30px;
 }
 
+.dialogue-box {
+  resize: none;
+}
+
 .dialogue-block {
   margin-top: 20px;
   width: 80%;
@@ -499,10 +504,10 @@ const displayCharacterName = computed(() => {
 
 .dialogue-block textarea {
   width: 100%;
-  min-height: 80px;
+  min-height: 180px;
   background: transparent;
   border: none;
-  resize: vertical;
+  resize: none;
   font-family: var(--font-breite), sans-serif;
   font-size: 1.1rem;
   color: var(--col-dark);
@@ -514,31 +519,61 @@ const displayCharacterName = computed(() => {
 
 .delete-btn {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: -38px;
+  right: -37px;
   background: transparent;
   border: none;
   cursor: pointer;
   font-size: 1.2rem;
-  opacity: 0.6;
+}
+
+.delete-btn img {
+  width: 60px;
+  height: 60px;
 }
 
 .delete-btn:hover {
-  opacity: 1;
+  animation: shrink-grow-shake 0.5s ease-in-out;
+}
+
+@keyframes shrink-grow-shake {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    transform: scale(1.2) rotate(0deg);
+  }
+  45% {
+    transform: scale(1.2) rotate(-5deg);
+  }
+  55% {
+    transform: scale(1.2) rotate(5deg);
+  }
+  65% {
+    transform: scale(1.2) rotate(-5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
 }
 
 .add-block-btn {
   width: 40%;
-  border: 2px dashed var(--col-brown);
-  background: transparent;
+  /* border: 2px dashed var(--col-brown); */
+  background-image: url("../assets/border-dashed.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  border: none;
+  background-position: center;
   padding: 10px;
-  border-radius: 10px;
+  background-color: transparent;
   cursor: pointer;
   display: flex;
   justify-content: center;
 }
-.add-block-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+
+.add-block-btn:hover img {
+  animation: shrink-grow-shake 0.5s ease-in-out;
 }
 
 .add-icon {
