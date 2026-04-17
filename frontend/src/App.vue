@@ -31,6 +31,10 @@
   src: url(/fonts/ClashDisplay-Variable.ttf) format("truetype");
 }
 
+* {
+  box-sizing: border-box;
+}
+
 :root {
   --col-orange: #d36b00;
   --col-dark: #1a120b;
@@ -67,6 +71,7 @@ button {
   padding: 20px 20px;
   border-bottom: 3px solid var(--border-color);
   background-color: var(--col-lbrown);
+  border-bottom: 4px solid var(--col-brown);
 }
 
 .nav-btn {
@@ -106,5 +111,6 @@ button {
 .main-content {
   flex: 1;
   overflow: hidden;
+  height: 100vh;
 }
 </style>
