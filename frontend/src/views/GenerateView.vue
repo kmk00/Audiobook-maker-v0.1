@@ -10,19 +10,6 @@ const activeCharacter = ref(null);
 const conversation = ref([]);
 const hoveredCharacter = ref(null);
 
-const fetchCharacters = async () => {
-  try {
-    const response = await fetch("http://127.0.0.1:8000/characters/");
-    if (response.ok) {
-      characters.value = await response.json();
-    } else {
-      console.error("Błąd podczas pobierania postaci");
-    }
-  } catch (error) {
-    console.error("Błąd sieci:", error);
-  }
-};
-
 onMounted(() => {
   characterStore.fetchCharacters();
 });
@@ -90,15 +77,12 @@ const generateAudiobook = () => {
     JSON.stringify(payload, null, 2),
   );
 
-  // TODO: Tutaj w przyszłości dodamy fetch("http://127.0.0.1:8000/audiobook/generate", { ... })
   alert("Sprawdź konsolę! JSON z konwersacją gotowy do wysłania.");
 };
 
 const getAvatarUrl = (path) => {
   if (!path) return "/emilia.png";
-
   const fixedPath = path.replace("characters/", "static_characters/");
-
   return `http://127.0.0.1:8000/${fixedPath}`;
 };
 
@@ -182,8 +166,13 @@ const displayCharacterName = computed(() => {
           :key="block.id"
         >
           <div class="character-tag">
-            <div class="mini-diamond">
-              <img :src="getAvatarUrl(block.avatar)" alt="" />
+            <div class="mini-avatar-container">
+              <div class="decor-frame mini-frame-1"></div>
+              <div class="decor-frame mini-frame-2"></div>
+
+              <div class="mini-diamond-inner">
+                <img :src="getAvatarUrl(block.avatar)" alt="" />
+              </div>
             </div>
             <span class="mini-name">{{ block.characterName }}</span>
           </div>
@@ -215,6 +204,7 @@ const displayCharacterName = computed(() => {
 </template>
 
 <style scoped>
+/* --- STARE STYLE (ZOSTAJA BEZ ZMIAN) --- */
 .generate-view {
   display: flex;
   height: 100%;
@@ -253,7 +243,6 @@ const displayCharacterName = computed(() => {
   grid-column: 5 / span 2;
   justify-self: center;
 }
-
 .diamond-avatar:nth-child(5n + 4) {
   grid-column: 2 / span 2;
   justify-self: center;
@@ -269,7 +258,6 @@ const displayCharacterName = computed(() => {
   position: relative;
   cursor: pointer;
   transition: transform 0.2s;
-
   display: flex;
   justify-content: center;
   align-items: center;
@@ -283,35 +271,38 @@ const displayCharacterName = computed(() => {
   box-shadow: 0 0 15px var(--col-orange);
 }
 
+/* Wspólne style dla ramek (sidebar i builder) */
 .decor-frame {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   background: transparent;
-  width: 90px;
-  height: 90px;
   z-index: 1;
 }
 
+/* Ramki dla sidebaru */
 .frame-1 {
+  width: 90px;
+  height: 90px;
   border: 3px solid var(--col-brown);
   transform: translate(-50%, -50%) rotate(60deg);
 }
 
 .frame-2 {
+  width: 90px;
+  height: 90px;
   border: 3px solid var(--col-lbrown);
   transform: translate(-50%, -50%) rotate(75deg);
 }
 
+/* --- NAPRAWA WYSRODKOWANIA OBRAZKA W SIDEBAR --- */
 .avatar-inner {
   position: relative;
   width: 95px;
   height: 95px;
   transform: rotate(45deg);
-
   background: var(--col-brown);
-
   border: 3px solid var(--col-light);
   overflow: hidden;
   transition: all 0.3s;
@@ -319,9 +310,10 @@ const displayCharacterName = computed(() => {
 }
 
 .avatar-inner img {
-  width: 150%;
-  height: 150%;
-  transform: rotate(-45deg) translate(-15%, -15%);
+  width: 100%; /*object-fit zajmie sie reszta */
+  height: 100%;
+  /* Kontra-rotacja, object-fit: cover naprawia wysrodkowanie */
+  transform: rotate(-45deg) scale(1.4);
   object-fit: cover;
 }
 
@@ -451,26 +443,58 @@ const displayCharacterName = computed(() => {
   font-weight: bold;
 }
 
-.mini-diamond {
+.mini-avatar-container {
+  width: 60px;
+  height: 60px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mini-frame-1 {
+  width: 45px;
+  height: 45px;
+  border: 2px solid var(--col-brown);
+  transform: translate(-50%, -50%) rotate(60deg);
+}
+
+.mini-frame-2 {
+  width: 45px;
+  height: 45px;
+  border: 2px solid var(--col-lbrown);
+  transform: translate(-50%, -50%) rotate(75deg);
+}
+
+.mini-diamond-inner {
+  position: relative;
   width: 45px;
   height: 45px;
   transform: rotate(45deg);
-  border: 1px solid var(--col-brown);
+  background: var(--col-brown);
+  border: 2px solid var(--col-light);
   overflow: hidden;
-  position: relative;
+  box-sizing: border-box;
+  z-index: 2;
 }
 
-.mini-diamond img {
-  width: 150%;
-  height: 150%;
-  transform: rotate(-45deg) translate(-15%, -15%);
+.mini-diamond-inner img {
+  width: 100%;
+  height: 100%;
+
+  transform: rotate(-45deg) scale(1.4);
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .mini-name {
   font-family: var(--font-bitroad);
   font-weight: bold;
   color: var(--col-brown);
-  margin-top: -35px;
+  margin-top: -50px;
+  margin-left: -20px;
 }
 
 .dialogue-block textarea {
