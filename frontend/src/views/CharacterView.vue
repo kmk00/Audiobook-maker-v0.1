@@ -1,6 +1,9 @@
 <script setup>
 import { reactive, ref } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
+import { useCharacterStore } from "../stores/characterStore";
+
+const characterStore = useCharacterStore();
 
 const form = reactive({
   avatar: null,
@@ -318,8 +321,10 @@ const saveCharacter = async () => {
     }
 
     const savedCharacter = await response.json();
-    console.log("✅ Sukces z backendu:", savedCharacter);
+
     alert(`Sukces! Postać "${savedCharacter.name}" została zapisana w bazie!`);
+
+    characterStore.characters.push(savedCharacter);
 
     isSaved.value = true;
   } catch (error) {
