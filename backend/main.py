@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from db.database import Base, engine
 
 from db import models
-from api import characters, tts
+from api import characters, tts, audiobook_utils
 
 Base.metadata.create_all(bind=engine)
 
@@ -48,6 +48,7 @@ app.mount("/static_characters", StaticFiles(directory="characters"), name="stati
 
 app.include_router(characters.router)
 app.include_router(tts.router)
+app.include_router(audiobook_utils.router)
 
 @app.get("/")
 async def root():

@@ -1,31 +1,96 @@
 <script setup>
 import { ref } from "vue";
+import { createToaster } from "@meforma/vue-toaster";
+import LoadingOverlay from "../components/LoadingOverlay.vue";
+
+const toaster = createToaster({ position: "top-right", duration: 3000 });
 
 const props = defineProps({
   activeCharacter: Object,
 });
 
 const longText = ref("");
+const isLoading = ref(false);
+const loadingText = ref("");
+const phraseToRemove = ref("");
 
-const handleFileUpload = (event) => {
+// Funkcja do błyskawicznego usuwania śmieci (nagłówki, stopki itp.)
+const removePhrase = () => {
+  if (!phraseToRemove.value) return;
+
+  const escapedPhrase = phraseToRemove.value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const regex = new RegExp(escapedPhrase, "gi");
+
+  longText.value = longText.value.replace(regex, "");
+  longText.value = longText.value
+    .replace(/ {2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  toaster.success(`Usunięto wszystkie wystąpienia: "${phraseToRemove.value}"`);
+  phraseToRemove.value = "";
+};
+
+const uploadAndExtractText = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    longText.value = e.target.result;
-  };
-  reader.readAsText(file);
+  console.log(`Wybrany plik: ${file.name} | Rozmiar: ${file.size} bajtów`);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  isLoading.value = true;
+  loadingText.value = `Wyciąganie tekstu z pliku ${file.name}...`;
+
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/audiobook_utils/extract-text",
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || "Błąd podczas przetwarzania pliku na serwerze.",
+      );
+    }
+
+    longText.value = data.text ? String(data.text) : "";
+
+    console.log(`Wczytano znaków: ${longText.value.length}`);
+
+    if (longText.value !== "") {
+      toaster.success("Tekst pomyślnie załadowany!");
+    } else {
+      toaster.warning("Plik został przetworzony, ale jest pusty.");
+    }
+  } catch (error) {
+    console.error("Błąd pobierania:", error);
+    toaster.error(error.message || "Nie udało się załadować pliku.");
+  } finally {
+    isLoading.value = false;
+    event.target.value = "";
+  }
 };
 
 const generateAudiobook = () => {
   if (!props.activeCharacter) {
-    alert("Wybierz postać z listy po lewej stronie przed generowaniem!");
+    toaster.warning(
+      "Wybierz postać z listy po lewej stronie przed generowaniem!",
+    );
     return;
   }
 
   if (longText.value.trim() === "") {
-    alert("Wpisz tekst lub załaduj plik .txt!");
+    toaster.warning("Wpisz tekst lub załaduj plik do przeczytania!");
     return;
   }
 
@@ -36,44 +101,61 @@ const generateAudiobook = () => {
   };
 
   console.log("🚀 GOTOWY JSON Z LONG TEXT:", JSON.stringify(payload, null, 2));
-  alert("Sprawdź konsolę! JSON z długim tekstem gotowy.");
+  toaster.success("Sprawdź konsolę! JSON z długim tekstem gotowy.");
 };
 </script>
 
 <template>
   <div class="mode-container">
+    <LoadingOverlay v-if="isLoading" :text="loadingText" />
+
     <div class="editor-area">
       <div class="file-upload-section">
         <div class="file-upload-wrapper">
-          <label for="text-upload" class="nav-btn file-label"> TXT </label>
+          <label for="txt-upload" class="nav-btn file-label"> TXT </label>
           <input
             type="file"
-            id="text-upload"
+            id="txt-upload"
             accept=".txt"
-            @change="handleFileUpload"
+            @change="uploadAndExtractText"
             hidden
           />
         </div>
+
         <div class="file-upload-wrapper">
-          <label for="text-upload" class="nav-btn file-label"> PDF </label>
+          <label for="pdf-upload" class="nav-btn file-label"> PDF </label>
           <input
             type="file"
-            id="text-upload"
-            accept=".txt"
-            @change="handleFileUpload"
+            id="pdf-upload"
+            accept=".pdf"
+            @change="uploadAndExtractText"
             hidden
           />
         </div>
+
         <div class="file-upload-wrapper">
-          <label for="text-upload" class="nav-btn file-label"> EPUB </label>
+          <label for="epub-upload" class="nav-btn file-label"> EPUB </label>
           <input
             type="file"
-            id="text-upload"
-            accept=".txt"
-            @change="handleFileUpload"
+            id="epub-upload"
+            accept=".epub"
+            @change="uploadAndExtractText"
             hidden
           />
         </div>
+      </div>
+
+      <div class="cleanup-toolkit" v-if="longText !== ''">
+        <input
+          type="text"
+          v-model="phraseToRemove"
+          placeholder="Wpisz tekst do usunięcia (np. 'Page|1', link, tytuł książki)..."
+          @keydown.enter.prevent="removePhrase"
+          class="cleanup-input"
+        />
+        <button class="nav-btn cleanup-btn" @click="removePhrase">
+          🧹 USUŃ Z CAŁEGO TEKSTU
+        </button>
       </div>
 
       <textarea
@@ -101,6 +183,7 @@ const generateAudiobook = () => {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .editor-area {
@@ -125,6 +208,36 @@ const generateAudiobook = () => {
 .file-label {
   display: inline-block;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-label:hover {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+}
+
+.cleanup-toolkit {
+  display: flex;
+  gap: 10px;
+  background-color: rgba(213, 206, 163, 0.3);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--col-brown);
+}
+
+.cleanup-input {
+  flex: 1;
+  padding: 5px 10px;
+  border: 1px solid var(--col-brown);
+  border-radius: 8px;
+  font-family: var(--font-breite), sans-serif;
+  font-size: 1rem;
+}
+
+.cleanup-btn {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+  font-size: 0.9rem;
 }
 
 .long-textarea {
@@ -139,12 +252,12 @@ const generateAudiobook = () => {
   font-size: 1.2rem;
   color: var(--col-dark);
 }
+
 .long-textarea:focus {
   outline: none;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-/* Skopiowane elementy paska z buildera */
 .nav-btn {
   padding: 5px 15px;
   border: 2px solid var(--col-brown);
