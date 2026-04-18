@@ -313,7 +313,9 @@ const getAvatarUrl = (path) => {
           @keydown.enter.prevent="removePhrase"
           class="cleanup-input"
         />
-        <button class="nav-btn cleanup-btn" @click="removePhrase">🧹</button>
+        <button class="nav-btn cleanup-btn" @click="removePhrase">
+          <img src="../assets/clean.svg" alt="" />
+        </button>
       </div>
 
       <div class="seamless-textarea-container">
@@ -372,14 +374,20 @@ const getAvatarUrl = (path) => {
         class="generate-action-btn diamond-btn large"
         @click="generateAudiobook"
       >
-        <span>🎶</span>
+        <span
+          ><img class="generate-btn" src="../assets/generate.svg" alt=""
+        /></span>
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Zostaw tu wszystkie swoje style bez zmian (identyczne jak w Twoim kodzie) */
+.generate-btn {
+  width: 30px;
+  height: 30px;
+}
+
 .mode-container {
   display: flex;
   flex-direction: column;

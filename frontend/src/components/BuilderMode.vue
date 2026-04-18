@@ -83,14 +83,20 @@ const generateAudiobook = () => {
         class="generate-action-btn diamond-btn large"
         @click="generateAudiobook"
       >
-        <span>🎶</span>
+        <span
+          ><img class="generate-btn" src="../assets/generate.svg" alt=""
+        /></span>
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Przenosimy tu TYLKO style dotyczące buildera */
+.generate-btn {
+  width: 30px;
+  height: 30px;
+}
+
 .mode-container {
   display: flex;
   flex-direction: column;
