@@ -693,7 +693,6 @@ onBeforeRouteLeave(async (to, from, next) => {
 .character-view {
   max-width: 500px;
   margin: auto;
-  overflow-y: auto;
 }
 
 .character-form {

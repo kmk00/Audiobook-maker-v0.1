@@ -61,6 +61,8 @@ body {
 .app-layout {
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 button {
@@ -115,7 +117,7 @@ button {
 
 .main-content {
   flex: 1;
-
+  overflow-y: auto;
   height: 100%;
 }
 </style>
