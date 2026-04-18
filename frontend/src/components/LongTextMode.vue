@@ -7,7 +7,6 @@ const props = defineProps({
 
 const longText = ref("");
 
-// Wgrywanie i czytanie pliku .txt
 const handleFileUpload = (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -16,7 +15,6 @@ const handleFileUpload = (event) => {
   reader.onload = (e) => {
     longText.value = e.target.result;
   };
-  // Czytamy plik tekstowy jako string
   reader.readAsText(file);
 };
 
@@ -45,17 +43,37 @@ const generateAudiobook = () => {
 <template>
   <div class="mode-container">
     <div class="editor-area">
-      <div class="file-upload-wrapper">
-        <label for="text-upload" class="nav-btn file-label">
-          📂 WGRAJ PLIK .TXT
-        </label>
-        <input
-          type="file"
-          id="text-upload"
-          accept=".txt"
-          @change="handleFileUpload"
-          hidden
-        />
+      <div class="file-upload-section">
+        <div class="file-upload-wrapper">
+          <label for="text-upload" class="nav-btn file-label"> TXT </label>
+          <input
+            type="file"
+            id="text-upload"
+            accept=".txt"
+            @change="handleFileUpload"
+            hidden
+          />
+        </div>
+        <div class="file-upload-wrapper">
+          <label for="text-upload" class="nav-btn file-label"> PDF </label>
+          <input
+            type="file"
+            id="text-upload"
+            accept=".txt"
+            @change="handleFileUpload"
+            hidden
+          />
+        </div>
+        <div class="file-upload-wrapper">
+          <label for="text-upload" class="nav-btn file-label"> EPUB </label>
+          <input
+            type="file"
+            id="text-upload"
+            accept=".txt"
+            @change="handleFileUpload"
+            hidden
+          />
+        </div>
       </div>
 
       <textarea
@@ -90,6 +108,12 @@ const generateAudiobook = () => {
   padding: 20px 40px;
   display: flex;
   flex-direction: column;
+  gap: 20px;
+}
+
+.file-upload-section {
+  display: flex;
+  justify-content: flex-end;
   gap: 20px;
 }
 
