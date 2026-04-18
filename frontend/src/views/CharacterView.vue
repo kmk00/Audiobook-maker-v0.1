@@ -78,7 +78,28 @@ const handleFileUpload = (field, event) => {
   form[field] = event.target.files[0];
 };
 
-// --- CZYSTA WALIDACJA Z TOASTAMI ---
+const availableCategories = computed(() => {
+  const categories = new Set();
+  characterStore.characters.forEach((char) => {
+    if (char.category) {
+      categories.add(char.category);
+    }
+  });
+  return Array.from(categories);
+});
+
+const suggestedCategories = computed(() => {
+  const input = form.category.trim().toLowerCase();
+  if (!input) return [];
+
+  return availableCategories.value.filter(
+    (cat) => cat.toLowerCase().includes(input) && cat.toLowerCase() !== input,
+  );
+});
+
+const selectCategory = (name) => {
+  form.category = name;
+};
 
 const validateForm = () => {
   if (!form.provider) {
@@ -350,14 +371,32 @@ onBeforeRouteLeave(async (to, from, next) => {
         />
       </label>
 
-      <label for="category">
+      <label for="category" class="category-wrapper">
         Kategoria (np. Tytuł książki)
         <input
           type="text"
           id="category"
           v-model="form.category"
           placeholder="Zostaw puste, jeśli brak"
+          autocomplete="off"
         />
+
+        <div
+          class="suggestions-box category-suggestions"
+          v-if="suggestedCategories.length"
+        >
+          <p>Istniejące kategorie:</p>
+          <div class="suggestions-list">
+            <span
+              class="suggestion-pill"
+              v-for="cat in suggestedCategories"
+              :key="cat"
+              @click="selectCategory(cat)"
+            >
+              {{ cat }}
+            </span>
+          </div>
+        </div>
       </label>
 
       <div class="custom-label">
@@ -661,6 +700,17 @@ onBeforeRouteLeave(async (to, from, next) => {
   display: flex;
   flex-direction: column;
   margin: 40px auto;
+}
+
+.category-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-suggestions {
+  margin-top: 5px;
+  border-style: solid;
 }
 
 .character-form input,
