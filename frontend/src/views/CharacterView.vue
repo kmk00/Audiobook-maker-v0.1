@@ -2,8 +2,23 @@
 import { reactive, ref, computed } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { useCharacterStore } from "../stores/characterStore";
+import { createToaster } from "@meforma/vue-toaster";
+import LoadingOverlay from "../components/LoadingOverlay.vue"; // IMPORT LOADERA
 
 const characterStore = useCharacterStore();
+
+const isLoading = ref(false);
+const loadingText = ref("");
+const canSave = ref(false);
+const isSaved = ref(false);
+const generatedAudioUrl = ref(null);
+const tempAudioPath = ref(null);
+const tagInput = ref("");
+
+const toaster = createToaster({
+  position: "top-right",
+  duration: 3000,
+});
 
 const form = reactive({
   avatar: null,
@@ -15,9 +30,7 @@ const form = reactive({
   textToGenerate: "Please tell me a secret, but be honest.",
 
   voiceToClone: null,
-
   xttsLanguage: "en",
-
   qwenLanguage: "English",
   voicePrompt: "",
   qwenTimbre: "Timbre 1",
@@ -30,12 +43,6 @@ const form = reactive({
   omniAccent: "",
   omniDialect: "",
 });
-
-const canSave = ref(false);
-const isSaved = ref(false);
-const generatedAudioUrl = ref(null);
-const tempAudioPath = ref(null);
-const tagInput = ref("");
 
 const availableTags = computed(() => {
   const allTags = new Set();
@@ -71,132 +78,95 @@ const handleFileUpload = (field, event) => {
   form[field] = event.target.files[0];
 };
 
+// --- CZYSTA WALIDACJA Z TOASTAMI ---
+
 const validateForm = () => {
   if (!form.provider) {
-    console.error("Wybierz model przed wygenerowaniem głosu!");
-    alert("Wybierz model!");
-    return;
-  }
-
-  if (!form.characterName) {
-    console.error("Podaj nazwę postaci!");
-    alert("Podaj nazwę postaci!");
+    toaster.warning("Wybierz model przed wygenerowaniem głosu!");
     return false;
   }
+  if (!form.characterName) {
+    toaster.warning("Podaj nazwę postaci!");
+    return false;
+  }
+  return true;
 };
 
 const validateXTTSForm = () => {
-  console.log("XTTS form validation:", form);
-
   if (!form.textToGenerate) {
-    console.error("Podaj tekst do wygenerowania głosu!");
-    alert("Podaj tekst do wygenerowania głosu!");
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
-
   if (!form.xttsLanguage) {
-    console.error("Wybierz język przed wygenerowaniem głosu!");
-    alert("Wybierz język!");
+    toaster.warning("Wybierz język!");
     return false;
   }
-
   if (!form.voiceToClone) {
-    console.error("Wybierz głos do sklonowania!");
-    alert("Wybierz głos do sklonowania!");
+    toaster.warning("Wybierz głos do sklonowania!");
     return false;
   }
-
   return true;
 };
 
 const validateQwenDesignForm = () => {
-  console.log("QWEN form validation:", form);
-
   if (!form.textToGenerate) {
-    console.error("Podaj tekst do wygenerowania głosu!");
-    alert("Podaj tekst do wygenerowania głosu!");
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
-
   if (!form.qwenLanguage) {
-    console.error("Wybierz język przed wygenerowaniem głosu!");
-    alert("Wybierz język!");
+    toaster.warning("Wybierz język!");
     return false;
   }
-
   return true;
 };
 
 const validateQwenCustomForm = () => {
-  console.log("QWEN form validation:", form);
-
   if (!form.textToGenerate) {
-    console.error("Podaj tekst do wygenerowania głosu!");
-    alert("Podaj tekst do wygenerowania głosu!");
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
-
   if (!form.qwenTimbre) {
-    console.error("Wybierz Timbre przed wygenerowaniem głosu!");
-    alert("Wybierz Timbre!");
+    toaster.warning("Wybierz Timbre!");
     return false;
   }
-
   return true;
 };
 
 const validateQwenBaseForm = () => {
-  console.log("QWEN base form validation:", form);
-
   if (!form.voiceToClone) {
-    console.error("Wybierz głos do sklonowania!");
-    alert("Wybierz głos do sklonowania!");
+    toaster.warning("Wybierz głos do sklonowania!");
     return false;
   }
-
   if (!form.textToGenerate) {
-    console.error("Podaj tekst do wygenerowania głosu!");
-    alert("Podaj tekst do wygenerowania głosu!");
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
-
   return true;
 };
 
 const validateOmnivoiceForm = (mode) => {
-  console.log("Omnivoice form validation:", form);
-
   if (!form.textToGenerate) {
-    console.error("Podaj tekst do wygenerowania głosu!");
-    alert("Podaj tekst do wygenerowania głosu!");
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
-
   if (mode === "voice_cloning" && !form.voiceToClone) {
-    console.error("Wybierz głos do sklonowania!");
-    alert("Wybierz głos do sklonowania!");
+    toaster.warning("Wybierz głos do sklonowania!");
     return false;
   }
-
   if (
     mode === "voice_design" &&
     !form.omniGender &&
     !form.omniAge &&
     !form.omniPitch
   ) {
-    console.error("Wybierz styl głosu!");
-    alert("Wybierz styl głosu!");
+    toaster.warning("Wybierz styl głosu!");
     return false;
   }
-
   return true;
 };
 
 const generateVoice = async () => {
-  console.log("--- FUNKCJA DO GENEROWANIA ---", form);
-  if (validateForm()) return;
-
-  console.log("--- PO GLOBALNEJ WALIDACJI ---", form);
+  if (!validateForm()) return;
 
   const payload = {
     provider: form.provider,
@@ -208,34 +178,25 @@ const generateVoice = async () => {
       if (!validateXTTSForm()) return;
       payload.language = form.xttsLanguage;
       payload.voiceToClone = form.voiceToClone?.name || null;
-      console.log("--- Validacja XTTS przeszła ---", payload);
       break;
-
     case "qwen_design":
       if (!validateQwenDesignForm()) return;
       payload.language = form.qwenLanguage;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- Validacja QWEN_DESIGN przeszła ---", payload);
       break;
-
     case "qwen_custom":
       if (!validateQwenCustomForm()) return;
       payload.timbre = form.qwenTimbre;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- Validacja QWEN_CUSTOM przeszła ---", payload);
       break;
-
     case "qwen_base":
       if (!validateQwenBaseForm()) return;
       payload.voiceToClone = form.voiceToClone?.name || null;
       payload.voicePrompt = form.voicePrompt;
-      console.log("--- Validacja QWEN_BASE przeszła ---", payload);
       break;
-
     case "omnivoice":
       payload.mode = form.omnivoiceMode;
       if (!validateOmnivoiceForm(form.omnivoiceMode)) return;
-
       if (form.omnivoiceMode === "voice_design") {
         payload.attributes = {
           gender: form.omniGender,
@@ -248,22 +209,17 @@ const generateVoice = async () => {
       } else {
         payload.voiceToClone = form.voiceToClone?.name || null;
       }
-
-      console.log("--- Validacja OMNIVOICE przeszla ---", payload);
       break;
   }
-
-  console.log("*********** VALIDACJA CAŁKOWITA PRZESZŁA", payload);
 
   const formData = new FormData();
   formData.append("text", form.textToGenerate);
   formData.append("provider", form.provider);
-
   if (form.voiceToClone) formData.append("voiceToClone", form.voiceToClone);
-
   formData.append("options", JSON.stringify(payload));
 
-  console.log("*********** WYSŁANY OBIEKT DO BACKENDU", formData);
+  loadingText.value = "Generowanie próbki głosu...";
+  isLoading.value = true;
 
   try {
     const response = await fetch("http://127.0.0.1:8000/tts/generate", {
@@ -276,35 +232,19 @@ const generateVoice = async () => {
     }
 
     const data = await response.json();
-
     tempAudioPath.value = data.audio_path;
     generatedAudioUrl.value = `http://127.0.0.1:8000${data.audio_path}`;
-
     canSave.value = true;
-    console.log("*********** ODEBRANO OD BACKENDU", data);
+
+    toaster.success("Próbka głosu została pomyślnie wygenerowana!");
   } catch (error) {
-    console.error("Błąd podczas pobierania pliku:", error);
+    toaster.error("Błąd podczas generowania głosu.");
+  } finally {
+    isLoading.value = false;
   }
 };
 
-onBeforeRouteLeave(async (to, from, next) => {
-  if (tempAudioPath.value && !isSaved.value) {
-    try {
-      await fetch(`http://127.0.0.1:8000/tts/temp`, {
-        method: "DELETE",
-      });
-      console.log("Usunięto plik tymczasowy:", tempAudioPath.value);
-    } catch (error) {
-      console.error("Błąd podczas usuwania pliku tymczasowego:", error);
-    }
-  }
-
-  next();
-});
-
 const saveCharacter = async () => {
-  console.log("💾 Zapisywanie postaci ze wszystkimi danymi:", form);
-
   const formData = new FormData();
   formData.append("name", form.characterName);
   formData.append("provider", form.provider);
@@ -344,6 +284,10 @@ const saveCharacter = async () => {
   if (form.avatar) {
     formData.append("avatar_file", form.avatar);
   }
+
+  loadingText.value = "Zapisywanie postaci w bazie...";
+  isLoading.value = true;
+
   try {
     const response = await fetch("http://127.0.0.1:8000/characters/", {
       method: "POST",
@@ -356,21 +300,35 @@ const saveCharacter = async () => {
     }
 
     const savedCharacter = await response.json();
-
-    alert(`Sukces! Postać "${savedCharacter.name}" została zapisana w bazie!`);
-
     characterStore.characters.push(savedCharacter);
-
     isSaved.value = true;
+
+    toaster.success(`Postać "${savedCharacter.name}" została zapisana!`);
   } catch (error) {
-    console.error("Błąd podczas zapisywania:", error);
-    alert("Nie udało się zapisać postaci: " + error.message);
+    toaster.error("Nie udało się zapisać postaci: " + error.message);
+  } finally {
+    isLoading.value = false;
   }
 };
+
+onBeforeRouteLeave(async (to, from, next) => {
+  if (tempAudioPath.value && !isSaved.value) {
+    try {
+      await fetch(`http://127.0.0.1:8000/tts/temp`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Network error", error);
+    }
+  }
+  next();
+});
 </script>
 
 <template>
   <div class="character-view">
+    <LoadingOverlay v-if="isLoading" :text="loadingText" />
+
     <form class="character-form" @submit.prevent>
       <label for="avatar">
         Wybierz Avatar
@@ -666,7 +624,7 @@ const saveCharacter = async () => {
           required
         ></textarea>
       </label>
-      <!-- Generated Audio -->
+
       <div
         v-if="generatedAudioUrl"
         style="margin-bottom: 20px; text-align: center"
