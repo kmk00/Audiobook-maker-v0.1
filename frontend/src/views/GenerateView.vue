@@ -194,13 +194,12 @@ const displayCharacterName = computed(() => {
           </div>
         </transition>
 
-        <button class="toggle-search-btn diamond-btn" @click="toggleSearch">
-          <span
-            :style="{
-              transform: isSearchOpen ? 'rotate(180deg)' : 'rotate(0)',
-            }"
-            >↑</span
-          >
+        <button
+          :style="{ transform: isSearchOpen ? 'rotate(180deg)' : '' }"
+          class="toggle-search-btn diamond-btn"
+          @click="toggleSearch"
+        >
+          <img src="../assets/up-arrow.svg" alt="Szukaj postaci" />
         </button>
       </div>
     </aside>
@@ -501,8 +500,8 @@ const displayCharacterName = computed(() => {
 .diamond-btn {
   width: 40px;
   height: 40px;
-  transform: rotate(45deg);
-  background-color: var(--col-brown);
+  transform: rotate(0);
+  background-color: transparent;
   border: none;
   cursor: pointer;
   display: flex;
