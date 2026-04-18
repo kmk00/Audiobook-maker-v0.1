@@ -14,6 +14,7 @@ const props = defineProps({
 const isLoading = ref(false);
 const loadingText = ref("");
 const phraseToRemove = ref("");
+const generatedAudioUrl = ref(null);
 
 const textSelection = ref({
   blockIndex: -1,
@@ -220,7 +221,7 @@ const uploadAndExtractText = async (event) => {
   }
 };
 
-const generateAudiobook = () => {
+const generateAudiobook = async () => {
   const validBlocks = audiobookStore.longTextBlocks.filter(
     (b) => b.text.trim() !== "",
   );
@@ -238,8 +239,38 @@ const generateAudiobook = () => {
     })),
   };
 
-  console.log("🚀 GOTOWY JSON Z LONG TEXT:", JSON.stringify(payload, null, 2));
-  toaster.success("JSON z długim tekstem gotowy. Sprawdź konsolę!");
+  isLoading.value = true;
+  loadingText.value = "Trwa nagrywanie w studiu... To może zająć chwilę!";
+  generatedAudioUrl.value = null; // Resetujemy stary odtwarzacz
+
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/tts/generate-audiobook",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(
+        err.detail || "Błąd podczas generowania audiobooka na serwerze.",
+      );
+    }
+
+    const data = await response.json();
+    generatedAudioUrl.value = data.file_url;
+    toaster.success("Audiobook wygenerowany pomyślnie!");
+  } catch (error) {
+    console.error(error);
+    toaster.error(error.message || "Wystąpił błąd podczas generowania.");
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const getAvatarUrl = (path) => {
@@ -370,6 +401,14 @@ const getAvatarUrl = (path) => {
 
     <div class="generate-bottom-bar">
       <h2>WYGENERUJ AUDIOBOOK (LONG TEXT)</h2>
+
+      <audio
+        v-if="generatedAudioUrl"
+        :src="generatedAudioUrl"
+        controls
+        class="result-player"
+      ></audio>
+
       <button
         class="generate-action-btn diamond-btn large"
         @click="generateAudiobook"
@@ -659,5 +698,12 @@ const getAvatarUrl = (path) => {
   min-height: 0;
   opacity: 0.3;
   pointer-events: none;
+}
+
+.result-player {
+  height: 40px;
+  border-radius: 20px;
+  outline: none;
+  border: 2px solid var(--col-orange);
 }
 </style>

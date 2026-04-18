@@ -1,11 +1,18 @@
 <script setup>
 import { useAudiobookStore } from "../stores/audiobookStore";
+import LoadingOverlay from "../components/LoadingOverlay.vue";
+import { createToaster } from "@meforma/vue-toaster";
+import { ref } from "vue";
 
 // Odbieramy aktywną postać od rodzica
 const props = defineProps({
   activeCharacter: Object,
 });
 
+const toaster = createToaster({ position: "top-right", duration: 3000 });
+const isLoading = ref(false);
+const loadingText = ref("");
+const generatedAudioUrl = ref(null);
 const audiobookStore = useAudiobookStore();
 
 const getAvatarUrl = (path) => {
@@ -14,9 +21,9 @@ const getAvatarUrl = (path) => {
   return `http://127.0.0.1:8000/${fixedPath}`;
 };
 
-const generateAudiobook = () => {
+const generateAudiobook = async () => {
   if (audiobookStore.conversation.length === 0) {
-    alert("Dodaj przynajmniej jedną kwestię dialogową!");
+    toaster.warning("Dodaj przynajmniej jedną kwestię dialogową!");
     return;
   }
 
@@ -24,7 +31,9 @@ const generateAudiobook = () => {
     (block) => block.text.trim() === "",
   );
   if (isEmpty) {
-    alert("Niektóre kwestie są puste. Uzupełnij je przed generowaniem.");
+    toaster.warning(
+      "Niektóre kwestie są puste. Uzupełnij je przed generowaniem.",
+    );
     return;
   }
 
@@ -32,12 +41,40 @@ const generateAudiobook = () => {
     mode: "builder",
     blocks: audiobookStore.conversation.map((block) => ({
       character_id: block.characterId,
-      text: block.text,
+      text: block.text.trim(),
     })),
   };
 
-  console.log("🚀 GOTOWY JSON Z BUILDERA:", JSON.stringify(payload, null, 2));
-  alert("Sprawdź konsolę! JSON z buildera gotowy.");
+  isLoading.value = true;
+  loadingText.value = "Trwa nagrywanie w studiu... To może zająć chwilę!";
+  generatedAudioUrl.value = null;
+
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/tts/generate-audiobook",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || "Błąd podczas generowania audiobooka.");
+    }
+
+    const data = await response.json();
+    generatedAudioUrl.value = data.file_url;
+    toaster.success("Scena wygenerowana pomyślnie!");
+  } catch (error) {
+    console.error(error);
+    toaster.error(error.message || "Wystąpił błąd podczas generowania.");
+  } finally {
+    isLoading.value = false;
+  }
 };
 </script>
 
@@ -79,6 +116,14 @@ const generateAudiobook = () => {
 
     <div class="generate-bottom-bar">
       <h2>WYGENERUJ AUDIOBOOK (BUILDER)</h2>
+
+      <audio
+        v-if="generatedAudioUrl"
+        :src="generatedAudioUrl"
+        controls
+        class="result-player"
+      ></audio>
+
       <button
         class="generate-action-btn diamond-btn large"
         @click="generateAudiobook"

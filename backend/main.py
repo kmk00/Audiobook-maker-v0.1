@@ -45,6 +45,7 @@ app.add_middleware(
 
 app.mount("/audio", StaticFiles(directory="audiobooks/audio"), name="audio")
 app.mount("/static_characters", StaticFiles(directory="characters"), name="static_characters")
+app.mount("/output", StaticFiles(directory="audiobooks/output"), name="output")
 
 app.include_router(characters.router)
 app.include_router(tts.router)
