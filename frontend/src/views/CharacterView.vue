@@ -360,8 +360,8 @@ onBeforeRouteLeave(async (to, from, next) => {
         />
       </label>
 
-      <label>
-        Tagi postaci
+      <div class="custom-label">
+        <span style="margin-bottom: 5px">Tagi postaci</span>
         <div class="tags-container">
           <div class="selected-tags" v-if="form.tags.length">
             <span
@@ -398,7 +398,7 @@ onBeforeRouteLeave(async (to, from, next) => {
             </div>
           </div>
         </div>
-      </label>
+      </div>
 
       <label for="description">
         Opis
@@ -773,6 +773,13 @@ onBeforeRouteLeave(async (to, from, next) => {
   border-radius: 10px;
   padding: 10px;
   font-size: 0.9rem;
+}
+
+.character-form label,
+.custom-label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
 }
 
 .suggestions-box p {
