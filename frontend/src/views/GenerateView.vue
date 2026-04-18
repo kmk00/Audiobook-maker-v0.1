@@ -11,8 +11,7 @@ const isSearchOpen = ref(false);
 const activeCharacter = ref(null);
 const hoveredCharacter = ref(null);
 
-// NOWOŚĆ: Stan wybranego trybu
-const currentMode = ref("builder"); // "builder" | "longtext"
+const currentMode = ref("builder");
 
 onMounted(() => {
   characterStore.fetchCharacters();
@@ -23,6 +22,29 @@ const filteredCharacters = computed(() => {
   return characterStore.characters.filter((char) =>
     char.name.toLowerCase().includes(searchQuery.value.toLowerCase()),
   );
+});
+
+const groupedCharacters = computed(() => {
+  const groups = {};
+
+  filteredCharacters.value.forEach((char) => {
+    const cat = char.category ? char.category.trim() : "Inne";
+    if (!groups[cat]) {
+      groups[cat] = [];
+    }
+    groups[cat].push(char);
+  });
+
+  return Object.keys(groups)
+    .sort((a, b) => {
+      if (a === "Inne") return 1;
+      if (b === "Inne") return -1;
+      return a.localeCompare(b);
+    })
+    .map((cat) => ({
+      category: cat,
+      characters: groups[cat],
+    }));
 });
 
 const selectCharacter = (char) => {
@@ -69,25 +91,39 @@ const displayCharacterName = computed(() => {
         {{ displayCharacterName }}
       </p>
 
-      <div class="characters-grid">
+      <div class="sidebar-scroll-area">
         <div
-          class="diamond-avatar"
-          v-for="char in filteredCharacters"
-          :key="char.id"
-          :class="{ active: activeCharacter && activeCharacter.id === char.id }"
-          @click="selectCharacter(char)"
-          @mouseover="hoveredCharacter = char"
-          @mouseleave="hoveredCharacter = null"
+          v-for="group in groupedCharacters"
+          :key="group.category"
+          class="category-group"
         >
-          <div class="decor-frame frame-1"></div>
-          <div class="decor-frame frame-2"></div>
+          <div class="category-header">
+            <h3>{{ group.category.toUpperCase() }}</h3>
+            <div class="category-line"></div>
+          </div>
 
-          <div class="avatar-inner">
-            <img :src="getAvatarUrl(char.avatar_path)" :alt="char.name" />
+          <div class="characters-grid">
+            <div
+              class="diamond-avatar"
+              v-for="char in group.characters"
+              :key="char.id"
+              :class="{
+                active: activeCharacter && activeCharacter.id === char.id,
+              }"
+              @click="selectCharacter(char)"
+              @mouseover="hoveredCharacter = char"
+              @mouseleave="hoveredCharacter = null"
+            >
+              <div class="decor-frame frame-1"></div>
+              <div class="decor-frame frame-2"></div>
+
+              <div class="avatar-inner">
+                <img :src="getAvatarUrl(char.avatar_path)" :alt="char.name" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
       <div class="sidebar-bottom">
         <transition name="slide-fade">
           <input
@@ -139,7 +175,6 @@ const displayCharacterName = computed(() => {
 </template>
 
 <style scoped>
-/* Tutaj zostają tylko style Sidebaru i głównego kontenera! */
 .generate-view {
   display: flex;
   height: 100%;
@@ -155,15 +190,53 @@ const displayCharacterName = computed(() => {
   flex-direction: column;
 }
 
-.characters-grid {
-  display: grid;
-  margin-top: 30px;
-  grid-template-columns: repeat(6, 1fr);
-  grid-auto-rows: 95px;
+.sidebar-scroll-area {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 80px;
-  padding-top: 25px;
+  margin-top: 20px;
+  padding-right: 10px;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll-area::-webkit-scrollbar-thumb {
+  background-color: var(--col-brown);
+  border-radius: 10px;
+}
+
+.category-group {
+  margin-bottom: 30px;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.category-header h3 {
+  font-family: var(--font-bitroad);
+  color: var(--col-brown);
+  margin: 0;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.category-line {
+  flex: 1;
+  height: 2px;
+  background-color: var(--col-brown);
+  opacity: 0.3;
+}
+
+.characters-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 95px;
+  padding-top: 15px;
 }
 
 .diamond-avatar:nth-child(5n + 1) {
