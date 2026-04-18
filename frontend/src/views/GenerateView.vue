@@ -10,18 +10,66 @@ const searchQuery = ref("");
 const isSearchOpen = ref(false);
 const activeCharacter = ref(null);
 const hoveredCharacter = ref(null);
-
+const selectedTags = ref([]);
 const currentMode = ref("builder");
 
 onMounted(() => {
   characterStore.fetchCharacters();
 });
 
+const allAvailableTags = computed(() => {
+  const tagsSet = new Set();
+  characterStore.characters.forEach((char) => {
+    if (char.tags && Array.isArray(char.tags)) {
+      char.tags.forEach((tag) => tagsSet.add(tag));
+    }
+  });
+  return Array.from(tagsSet).sort();
+});
+
+const toggleTagFilter = (tag) => {
+  const index = selectedTags.value.indexOf(tag);
+  if (index > -1) {
+    selectedTags.value.splice(index, 1);
+  } else {
+    selectedTags.value.push(tag);
+  }
+};
+
+const toggleSearch = () => {
+  isSearchOpen.value = !isSearchOpen.value;
+  if (!isSearchOpen.value) {
+    searchQuery.value = "";
+    selectedTags.value = [];
+  }
+};
+
 const filteredCharacters = computed(() => {
-  if (!searchQuery.value) return characterStore.characters;
-  return characterStore.characters.filter((char) =>
-    char.name.toLowerCase().includes(searchQuery.value.toLowerCase()),
-  );
+  let result = characterStore.characters;
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((char) => {
+      const matchName = char.name.toLowerCase().includes(query);
+
+      const matchTag =
+        char.tags && char.tags.some((t) => t.toLowerCase().includes(query));
+
+      const matchCategory =
+        char.category && char.category.toLowerCase().includes(query);
+
+      return matchName || matchTag || matchCategory;
+    });
+  }
+
+  if (selectedTags.value.length > 0) {
+    result = result.filter((char) => {
+      if (!char.tags) return false;
+      return selectedTags.value.every((t) => char.tags.includes(t));
+    });
+  }
+
+  return result;
 });
 
 const groupedCharacters = computed(() => {
@@ -53,11 +101,6 @@ const selectCharacter = (char) => {
   } else {
     activeCharacter.value = char;
   }
-};
-
-const toggleSearch = () => {
-  isSearchOpen.value = !isSearchOpen.value;
-  if (!isSearchOpen.value) searchQuery.value = "";
 };
 
 const getAvatarUrl = (path) => {
@@ -126,14 +169,31 @@ const displayCharacterName = computed(() => {
       </div>
       <div class="sidebar-bottom">
         <transition name="slide-fade">
-          <input
-            v-if="isSearchOpen"
-            type="text"
-            class="search-input"
-            placeholder="Szukaj postaci..."
-            v-model="searchQuery"
-          />
+          <div class="filter-panel" v-if="isSearchOpen">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Wpisz nazwę lub tag..."
+              v-model="searchQuery"
+            />
+
+            <div class="tags-filter-section" v-if="allAvailableTags.length > 0">
+              <p class="filter-title">Filtruj po tagach:</p>
+              <div class="tags-filter-list">
+                <span
+                  v-for="tag in allAvailableTags"
+                  :key="tag"
+                  class="filter-tag-pill"
+                  :class="{ active: selectedTags.includes(tag) }"
+                  @click="toggleTagFilter(tag)"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
         </transition>
+
         <button class="toggle-search-btn diamond-btn" @click="toggleSearch">
           <span
             :style="{
@@ -341,7 +401,92 @@ const displayCharacterName = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  z-index: 10;
+}
+
+.filter-panel {
+  width: 90%;
+  background-color: var(--col-light);
+  border: 3px solid var(--col-brown);
+  border-radius: 14px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.15);
+}
+
+.filter-panel .search-input {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid var(--col-brown);
+  background-color: #fff;
+  border-radius: 10px;
+  font-family: var(--font-bitroad);
+  text-align: center;
+  font-weight: bold;
+  color: var(--col-dark);
+}
+
+.filter-panel .search-input:focus {
+  outline: none;
+  border-color: var(--col-orange);
+}
+
+.tags-filter-section {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.filter-title {
+  margin: 0;
+  font-family: var(--font-bitroad);
+  font-size: 0.9rem;
+  color: var(--col-brown);
+  font-weight: bold;
+  text-align: center;
+}
+
+.tags-filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.tags-filter-list::-webkit-scrollbar {
+  width: 4px;
+}
+.tags-filter-list::-webkit-scrollbar-thumb {
+  background-color: var(--col-brown);
+  border-radius: 4px;
+}
+
+.filter-tag-pill {
+  background-color: transparent;
+  border: 1px solid var(--col-brown);
+  color: var(--col-brown);
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: bold;
+}
+
+.filter-tag-pill:hover {
+  background-color: rgba(60, 42, 33, 0.1);
+}
+
+.filter-tag-pill.active {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 .search-input {
