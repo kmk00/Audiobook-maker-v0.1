@@ -241,6 +241,12 @@ const generateAudiobook = () => {
   console.log("🚀 GOTOWY JSON Z LONG TEXT:", JSON.stringify(payload, null, 2));
   toaster.success("JSON z długim tekstem gotowy. Sprawdź konsolę!");
 };
+
+const getAvatarUrl = (path) => {
+  if (!path) return "/emilia.png";
+  const fixedPath = path.replace("characters/", "static_characters/");
+  return `http://127.0.0.1:8000/${fixedPath}`;
+};
 </script>
 
 <template>
@@ -254,7 +260,7 @@ const generateAudiobook = () => {
       <div class="assign-actions" v-else>
         <span class="shortcut-hint">Zaznacz i kliknij <b>Ctrl + S</b></span>
         <button class="nav-btn assign-btn" @click="assignSelectionToCharacter">
-          ✨ PRZYPISZ ZAZNACZENIE DO:
+          PRZYPISZ ZAZNACZENIE DO:
           <span class="highlight-name">{{
             activeCharacter.name.toUpperCase()
           }}</span>
@@ -316,20 +322,32 @@ const generateAudiobook = () => {
           v-for="(block, index) in audiobookStore.longTextBlocks"
           :key="block.id"
         >
-          <div
-            class="inline-speaker-tag"
-            v-if="block.characterId && block.text.trim() !== ''"
-          >
-            <span class="speaker-name">{{
-              block.characterName.toUpperCase()
-            }}</span>
-            <button
-              class="remove-speaker-btn"
-              title="Usuń przypisanie"
-              @click="unassignBlock(index)"
+          <div class="speaker-wrapper">
+            <div
+              v-if="block.characterId && block.text.trim() !== ''"
+              class="mini-avatar-container"
             >
-              ✖
-            </button>
+              <div class="decor-frame mini-frame-1"></div>
+              <div class="decor-frame mini-frame-2"></div>
+              <div class="mini-diamond-inner">
+                <img :src="getAvatarUrl(block.avatar)" alt="" />
+              </div>
+            </div>
+            <div
+              class="inline-speaker-tag"
+              v-if="block.characterId && block.text.trim() !== ''"
+            >
+              <span class="speaker-name">{{
+                block.characterName.toUpperCase()
+              }}</span>
+              <button
+                class="remove-speaker-btn"
+                title="Usuń przypisanie"
+                @click="unassignBlock(index)"
+              >
+                ✖
+              </button>
+            </div>
           </div>
 
           <textarea
@@ -432,24 +450,87 @@ const generateAudiobook = () => {
   flex-direction: column;
 }
 .inline-speaker-tag {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  align-self: flex-start;
+  justify-content: center;
   gap: 8px;
-  background-color: var(--col-orange);
-  color: var(--col-light);
+  background-color: var(--col-light);
+  color: var(--col-brown);
   padding: 3px 10px;
   border-radius: 6px;
   font-family: var(--font-bitroad);
   font-size: 0.85rem;
-  margin-top: 10px;
+  font-weight: 800;
   margin-bottom: 2px;
   user-select: none;
 }
+
+.mini-avatar-container {
+  width: 60px;
+  height: 60px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.decor-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  z-index: 1;
+}
+
+.mini-frame-1 {
+  width: 45px;
+  height: 45px;
+  border: 2px solid var(--col-brown);
+  transform: translate(-50%, -50%) rotate(60deg);
+}
+
+.mini-frame-2 {
+  width: 45px;
+  height: 45px;
+  border: 2px solid var(--col-lbrown);
+  transform: translate(-50%, -50%) rotate(75deg);
+}
+
+.mini-diamond-inner {
+  position: relative;
+  width: 45px;
+  height: 45px;
+  transform: rotate(45deg);
+  background: var(--col-brown);
+  border: 2px solid var(--col-light);
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.mini-diamond-inner img {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-45deg) scale(1.4);
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.speaker-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
 .remove-speaker-btn {
   background: none;
   border: none;
-  color: var(--col-light);
+  color: var(--col-dark);
   cursor: pointer;
   font-size: 0.8rem;
   padding: 0;
