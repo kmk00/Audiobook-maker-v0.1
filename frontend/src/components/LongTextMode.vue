@@ -44,6 +44,28 @@ onMounted(() => {
   adjustAllTextareas();
 });
 
+const pollTaskStatus = async (taskId) => {
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/tts/task-status/${taskId}`);
+    const data = await res.json();
+
+    if (data.status === "completed") {
+      isLoading.value = false;
+      generatedAudioUrl.value = data.file_url;
+      toaster.success("Książka wygenerowana pomyślnie!");
+    } else if (data.status === "error") {
+      isLoading.value = false;
+      toaster.error("Błąd podczas generowania: " + data.error);
+    } else {
+      loadingText.value = data.message || "Trwa przetwarzanie na serwerze...";
+      setTimeout(() => pollTaskStatus(taskId), 3000);
+    }
+  } catch (error) {
+    isLoading.value = false;
+    toaster.error("Błąd komunikacji z serwerem sprawdzającym status.");
+  }
+};
+
 const cleanupAndMergeBlocks = () => {
   const blocks = audiobookStore.longTextBlocks;
 
@@ -240,36 +262,30 @@ const generateAudiobook = async () => {
   };
 
   isLoading.value = true;
-  loadingText.value = "Trwa nagrywanie w studiu... To może zająć chwilę!";
-  generatedAudioUrl.value = null; // Resetujemy stary odtwarzacz
+  loadingText.value = "Zlecanie zadania na serwer... Czekaj!";
+  generatedAudioUrl.value = null;
 
   try {
     const response = await fetch(
       "http://127.0.0.1:8000/tts/generate-audiobook",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       },
     );
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(
-        err.detail || "Błąd podczas generowania audiobooka na serwerze.",
-      );
+      throw new Error(err.detail || "Błąd podczas zlecania audiobooka.");
     }
 
     const data = await response.json();
-    generatedAudioUrl.value = data.file_url;
-    toaster.success("Audiobook wygenerowany pomyślnie!");
+
+    pollTaskStatus(data.task_id);
   } catch (error) {
-    console.error(error);
-    toaster.error(error.message || "Wystąpił błąd podczas generowania.");
-  } finally {
     isLoading.value = false;
+    toaster.error(error.message || "Wystąpił błąd.");
   }
 };
 

@@ -1,6 +1,8 @@
+import re
+import subprocess
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from uuid import uuid4
@@ -33,6 +35,7 @@ os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 TEMP_AUDIO_DIR = "audiobooks/audio/temp"
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
+tasks_db = {}
 
 def clear_temp_directory():
     """Remove all files in the temporary audio directory."""
@@ -51,6 +54,32 @@ tts_manager.load_provider("qwen_custom")
 tts_manager.load_provider("qwen_design")
 tts_manager.load_provider("qwen_base")
 tts_manager.load_provider("omnivoice")
+
+def split_into_chunks(text: str, max_chars: int = 1200) -> List[str]:
+    """Tnie tekst na zgrabne paczki bez ucinania zdań wpół."""
+    sentences = re.split(r'(?<=[.!?])\s+|\n+', text)
+    chunks = []
+    current_chunk = ""
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence: continue
+
+        if len(current_chunk) + len(sentence) <= max_chars:
+            current_chunk += sentence + " "
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            if len(sentence) > max_chars:
+                for i in range(0, len(sentence), max_chars):
+                    chunks.append(sentence[i:i+max_chars])
+                current_chunk = ""
+            else:
+                current_chunk = sentence + " "
+                
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+    return chunks
 
 @router.post("/generate", response_model=TTSResult)
 def generate_speech(
@@ -107,123 +136,141 @@ def delete_temp_files():
 
 
 @router.post("/generate-audiobook")
-def generate_full_audiobook(payload: AudiobookPayload, db: Session = Depends(get_db)):
+def start_audiobook_generation(
+    payload: AudiobookPayload, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
+    task_id = uuid4().hex
     
-    # 1. Tworzymy listę zadań zachowując oryginalny indeks (żeby móc to potem posortować)
-    tasks = []
-    for idx, block in enumerate(payload.blocks):
-        tasks.append({
-            "index": idx,
-            "char_id": block.character_id,
-            "text": block.text
-        })
 
-    # 2. INTELIGENTNE GRUPOWANIE: Sortujemy po character_id
-    # Zapobiega to ciągłemu przełączaniu modeli w pamięci VRAM mikroserwisów
+    tasks = []
+    for block_idx, block in enumerate(payload.blocks):
+        text = block.text.strip()
+        if not text: continue
+            
+        chunks = split_into_chunks(text, max_chars=1200)
+        for chunk_idx, chunk_text in enumerate(chunks):
+            tasks.append({
+                "global_index": (block_idx, chunk_idx),
+                "char_id": block.character_id,
+                "text": chunk_text
+            })
+
+
     tasks.sort(key=lambda x: x["char_id"] if x["char_id"] is not None else -1)
 
-    generated_audio_files = []
 
-    # 3. GENEROWANIE POJEDYNCZYCH PLIKÓW
+    prepared_tasks = []
     for task in tasks:
         char_id = task["char_id"]
-        text = task["text"]
-
-        if not text.strip():
-            continue # Zabezpieczenie przed pustymi tekstami
-
-        # POBIERANIE USTAWIEŃ Z TWOJEJ BAZY DANYCH
-
+        
         if char_id is not None:
-            
             character: Any = db.query(models.Character).filter(models.Character.id == char_id).first()
-            
-            if not character:
-                print(f"Uwaga: Nie znaleziono postaci o ID {char_id}. Pomijam.")
-                continue 
+            if not character: continue 
                 
-            # Teraz możemy używać przypisań bez żadnych kombinacji z rzutowaniem!
             provider = character.provider or "omnivoice"
             voice_path = character.voice_path
             voice_prompt = character.voice_prompt
             
-            # Pobieramy JSON i upewniamy się, że to słownik
             options_dict = character.provider_options or {}
-            if not isinstance(options_dict, dict):
-                options_dict = {}
-            
-            # Zwykłe dopisanie języka
+            if not isinstance(options_dict, dict): options_dict = {}
             if character.language and "language" not in options_dict:
                 options_dict["language"] = character.language
         else:
-            # Ustawienia dla domyślnego NARRATORA (gdy character_id jest null)
             provider = "omnivoice" 
             voice_path = None
             voice_prompt = None
             options_dict = {}
 
-        # Przygotowanie zapytania dla Twojego TTSManager
-        req = TTSRequest(
-            text=text,
-            provider=provider,
-            voice_path=voice_path,
-            voice_prompt=voice_prompt,
-            options=options_dict
-        )
+        prepared_tasks.append({
+            "global_index": task["global_index"],
+            "provider": provider,
+            "voice_path": voice_path,
+            "voice_prompt": voice_prompt,
+            "options": options_dict,
+            "text": task["text"]
+        })
 
-        try:
-            print(f"Generowanie bloku {task['index']} dla postaci ID: {char_id} (Model: {provider})")
-            
-            # Generowanie!
-            result = tts_manager.generate_audio(req, provider_override=provider)
-            
-            # Pełna fizyczna ścieżka do utworzonego pliku temp
-            # (Zakładamy, że twój TTSManager zwraca ścieżkę w result.audio_path, jeśli zwraca tylko nazwę, dodaj os.path.join)
-            physical_temp_path = result.audio_path 
-            
-            # Upewniamy się, że to prawdziwa ścieżka systemowa, a nie URL (bo pydub potrzebuje ścieżki)
-            if physical_temp_path.startswith("/audio/temp/"):
-                physical_temp_path = os.path.join(TEMP_AUDIO_DIR, physical_temp_path.split("/")[-1])
-            
-            generated_audio_files.append((task["index"], physical_temp_path))
-            
-        except Exception as e:
-            print(f"Błąd generowania dla bloku {task['index']}: {e}")
-            raise HTTPException(status_code=500, detail=f"Błąd generowania bloku tekstu: {e}")
 
-    # 4. PRZYWRACANIE ORYGINALNEJ KOLEJNOŚCI CHRONOLOGICZNEJ
-    generated_audio_files.sort(key=lambda x: x[0])
+    tasks_db[task_id] = {"status": "pending", "message": "Rozpoczynamy przygotowania..."}
+    background_tasks.add_task(process_audiobook_task, task_id, prepared_tasks)
 
-    # 5. SCALANIE PLIKÓW W JEDEN AUDIOBOOK (Pydub)
-    print("Scalanie plików audio...")
-    combined_audio = AudioSegment.empty()
+    return {"task_id": task_id}
+
+
+@router.get("/task-status/{task_id}")
+def check_task_status(task_id: str):
+    """Odpytywane przez Vue co kilka sekund, by sprawdzić postęp."""
+    if task_id not in tasks_db:
+        raise HTTPException(status_code=404, detail="Nie znaleziono zadania w systemie")
+    return tasks_db[task_id]
     
-    # 600ms ciszy między kwestiami dla naturalnego flow
-    silence = AudioSegment.silent(duration=600) 
 
-    for idx, filepath in generated_audio_files:
-        try:
-            if os.path.exists(filepath):
-                segment = AudioSegment.from_file(filepath)
-                combined_audio += segment + silence
-            else:
-                print(f"Plik nie istnieje, pomijam scalanie: {filepath}")
-        except Exception as e:
-            print(f"Błąd podczas łączenia pliku {filepath}: {e}")
+def process_audiobook_task(task_id: str, prepared_tasks: list):
+    try:
+        tasks_db[task_id] = {"status": "processing", "message": f"Generowanie paczek audio (0/{len(prepared_tasks)})..."}
+        generated_audio_files = []
 
-    # 6. ZAPIS FINALNEGO PLIKU DO KATALOGU OUTPUT
-    final_filename = f"audiobook_{uuid4().hex}.wav"
-    final_filepath = os.path.join(OUTPUT_AUDIO_DIR, final_filename)
-    
-    # Eksport do WAV (możesz też zmienić format na "mp3" jeśli zainstalowałeś kodeki w FFmpeg)
-    combined_audio.export(final_filepath, format="wav")
 
-    print(f"✅ Zakończono tworzenie audiobooka: {final_filepath}")
+        for i, task_data in enumerate(prepared_tasks):
+            req = TTSRequest(
+                text=task_data["text"],
+                provider=task_data["provider"],
+                voice_path=task_data["voice_path"],
+                voice_prompt=task_data["voice_prompt"],
+                options=task_data["options"]
+            )
+            
 
-    # Opcjonalnie: Czyszczenie plików tymczasowych po udanym scaleniu
-    # clear_temp_directory()
+            tasks_db[task_id] = {
+                "status": "processing", 
+                "message": f"Wygenerowano {i + 1}/{len(prepared_tasks)} fragmentów..."
+            }
 
-    return {
-        "message": "Audiobook wygenerowany pomyślnie!",
-        "file_url": f"http://127.0.0.1:8000/output/{final_filename}"
-    }
+            result = tts_manager.generate_audio(req, provider_override=task_data["provider"])
+            
+            phys_path = result.audio_path 
+            if phys_path.startswith("/audio/temp/"):
+                phys_path = os.path.join(TEMP_AUDIO_DIR, phys_path.split("/")[-1])
+            
+            generated_audio_files.append((task_data["global_index"], phys_path))
+
+
+        generated_audio_files.sort(key=lambda x: x[0])
+        tasks_db[task_id] = {"status": "processing", "message": "Trwa błyskawiczne scalanie plików bez zużycia RAM-u..."}
+
+
+        silence_path = os.path.abspath(os.path.join(TEMP_AUDIO_DIR, "silence_600ms.wav")).replace("\\", "/")
+        if not os.path.exists(silence_path):
+            AudioSegment.silent(duration=600).export(silence_path, format="wav")
+
+
+        concat_file_path = os.path.join(TEMP_AUDIO_DIR, f"concat_{task_id}.txt")
+        with open(concat_file_path, "w", encoding="utf-8") as f:
+            for _, filepath in generated_audio_files:
+                abs_filepath = os.path.abspath(filepath).replace("\\", "/")
+                f.write(f"file '{abs_filepath}'\n")
+                f.write(f"file '{silence_path}'\n")
+
+        
+        final_filename = f"audiobook_{task_id}.wav"
+        final_filepath = os.path.join(OUTPUT_AUDIO_DIR, final_filename)
+
+        cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", concat_file_path, "-c", "copy", final_filepath
+        ]
+        
+        
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+       
+        file_url = f"http://127.0.0.1:8000/output/{final_filename}"
+        tasks_db[task_id] = {"status": "completed", "file_url": file_url}
+
+    except subprocess.CalledProcessError as e:
+        error_output = e.stderr.decode('utf-8', errors='ignore')
+        tasks_db[task_id] = {"status": "error", "error": f"Błąd scalania FFmpeg: {error_output}"}
+    except Exception as e:
+        tasks_db[task_id] = {"status": "error", "error": str(e)}
