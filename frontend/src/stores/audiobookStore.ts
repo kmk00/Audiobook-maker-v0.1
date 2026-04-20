@@ -1,9 +1,17 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
+export interface AudioBlock {
+  id: number | string;
+  characterId: number | string | null;
+  characterName: string;
+  avatar: string | null;
+  text: string;
+}
+
 export const useAudiobookStore = defineStore("audiobook", () => {
   // --- STAN BUILDERA ---
-  const conversation = ref([]);
+  const conversation = ref<AudioBlock[]>([]);
 
   // --- STAN LONG TEXT ---
   const longTextBlocks = ref([
