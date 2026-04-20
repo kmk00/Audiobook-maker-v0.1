@@ -451,7 +451,7 @@ onBeforeRouteLeave(async (to, from, next) => {
           <option value="coqui_xtts_v2">1. XTTS</option>
           <option value="qwen_design">2. QWEN DESIGN</option>
           <option value="qwen_custom">3. QWEN CUSTOM</option>
-          <option value="qwen_base">4. QWEN BASE</option>
+          <!-- <option value="qwen_base">4. QWEN BASE</option> -->
           <option value="omnivoice">5. OMNIVOICE</option>
         </select>
       </label>
