@@ -73,8 +73,11 @@ Projekt powstał z potrzeby stworzenia narzędzia, które potrafi przekształci�
 Projekt został zoptymalizowany pod kątem pracy na mocnych stacjach roboczych:
 
 GPU: GPU: NVIDIA GeForce RTX 5070 Ti (16 GB VRAM)
+
 RAM: 32 GB
+
 CPU: AMD Ryzen 7 7800X3D
+
 OS: Windows 10 
 
 
