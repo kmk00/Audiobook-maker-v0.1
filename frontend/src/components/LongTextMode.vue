@@ -300,7 +300,7 @@ const getAvatarUrl = (path) => {
   <div class="mode-container">
     <LoadingOverlay v-if="isLoading" :text="loadingText" />
 
-    <div class="assign-bar" v-if="textSelection.blockIndex !== -1">
+    <!-- <div class="assign-bar" v-if="textSelection.blockIndex !== -1">
       <p v-if="!activeCharacter" class="warning-text">
         Wybierz postać z listy, aby przypisać tekst!
       </p>
@@ -313,7 +313,7 @@ const getAvatarUrl = (path) => {
           }}</span>
         </button>
       </div>
-    </div>
+    </div> -->
 
     <div class="editor-area">
       <div class="file-upload-section">
