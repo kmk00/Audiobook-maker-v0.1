@@ -9,27 +9,18 @@ from db.database import Base, engine
 
 from db import models
 from api import characters, tts, audiobook_utils
-
+from utils.lifespan_utils import clear_temp_directory
 Base.metadata.create_all(bind=engine)
-
-TEMP_AUDIO_DIR = "audiobooks/audio/temp"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Cleaning up temporary audio directory on startup ...")
-    
-    
-    if os.path.exists(TEMP_AUDIO_DIR):
-        shutil.rmtree(TEMP_AUDIO_DIR, ignore_errors=True)
-        
-    os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
+    clear_temp_directory()
     
     yield
     
     print("Cleaning up temporary audio directory on shutdown ...")
-    if os.path.exists(TEMP_AUDIO_DIR):
-        shutil.rmtree(TEMP_AUDIO_DIR, ignore_errors=True)
-    
+    clear_temp_directory()
 
 app = FastAPI(lifespan=lifespan)
 
