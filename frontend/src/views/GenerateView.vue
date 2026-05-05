@@ -4,6 +4,7 @@ import { useCharacterStore } from "../stores/characterStore";
 import BuilderMode from "../components/BuilderMode.vue";
 import LongTextMode from "../components/LongTextMode.vue";
 import ReZeroMode from "../components/ReZeroMode.vue";
+import { createToaster } from "@meforma/vue-toaster";
 
 const characterStore = useCharacterStore();
 
@@ -13,10 +14,13 @@ const activeCharacter = ref(null);
 const hoveredCharacter = ref(null);
 const selectedTags = ref([]);
 const currentMode = ref("builder");
+const isDeleteMode = ref(false);
 
 onMounted(() => {
   characterStore.fetchCharacters();
 });
+
+const toaster = createToaster({ position: "top-right", duration: 3000 });
 
 const allAvailableTags = computed(() => {
   const tagsSet = new Set();
@@ -104,6 +108,44 @@ const selectCharacter = (char) => {
   }
 };
 
+const handleCharacterClick = async (char) => {
+  if (isDeleteMode.value) {
+    if (
+      confirm(
+        `⚠️ Czy na pewno chcesz trwale usunąć postać: ${char.name.toUpperCase()}?\nZniknie ona bezpowrotnie wraz z przypisanymi plikami.`,
+      )
+    ) {
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/characters/${char.id}`,
+          {
+            method: "DELETE",
+          },
+        );
+
+        if (!response.ok) throw new Error("Błąd podczas usuwania na serwerze");
+
+        const index = characterStore.characters.findIndex(
+          (c) => c.id === char.id,
+        );
+        if (index > -1) {
+          characterStore.characters.splice(index, 1);
+        }
+
+        if (activeCharacter.value?.id === char.id) {
+          activeCharacter.value = null;
+        }
+
+        toaster.success(`Postać ${char.name} została usunięta.`);
+      } catch (error) {
+        toaster.error(error.message);
+      }
+    }
+  } else {
+    selectCharacter(char);
+  }
+};
+
 const getAvatarUrl = (path) => {
   if (!path) return "/emilia.png";
   const fixedPath = path.replace("characters/", "static_characters/");
@@ -153,8 +195,9 @@ const displayCharacterName = computed(() => {
               :key="char.id"
               :class="{
                 active: activeCharacter && activeCharacter.id === char.id,
+                'delete-mode': isDeleteMode /* DODANO KLASE */,
               }"
-              @click="selectCharacter(char)"
+              @click="handleCharacterClick(char)"
               @mouseover="hoveredCharacter = char"
               @mouseleave="hoveredCharacter = null"
             >
@@ -195,13 +238,23 @@ const displayCharacterName = computed(() => {
           </div>
         </transition>
 
-        <button
-          :style="{ transform: isSearchOpen ? 'rotate(180deg)' : '' }"
-          class="toggle-search-btn diamond-btn"
-          @click="toggleSearch"
-        >
-          <img src="../assets/up-arrow.svg" alt="Szukaj postaci" />
-        </button>
+        <div class="sidebar-actions">
+          <button
+            :class="['toggle-delete-btn diamond-btn', { active: isDeleteMode }]"
+            @click="isDeleteMode = !isDeleteMode"
+            title="Tryb usuwania postaci"
+          >
+            <span style="transform: rotate(-45deg); font-size: 1.2rem">🗑️</span>
+          </button>
+
+          <button
+            :style="{ transform: isSearchOpen ? 'rotate(180deg)' : '' }"
+            class="toggle-search-btn diamond-btn"
+            @click="toggleSearch"
+          >
+            <img src="../assets/up-arrow.svg" alt="Szukaj postaci" />
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -561,5 +614,50 @@ const displayCharacterName = computed(() => {
 }
 .nav-btn.active {
   background-color: var(--col-lbrown);
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  align-items: center;
+}
+
+.toggle-delete-btn {
+  transition: all 0.3s;
+}
+
+.toggle-delete-btn.active {
+  background-color: #d32f2f;
+  border: 2px solid var(--col-light);
+  transform: rotate(45deg) scale(1.1);
+  box-shadow: 0 0 15px rgba(211, 47, 47, 0.6);
+}
+
+.diamond-avatar.delete-mode {
+  animation: shake 2s infinite ease-in-out;
+}
+
+.diamond-avatar.delete-mode:hover .avatar-inner {
+  border-color: #d32f2f;
+  box-shadow: 0 0 20px #d32f2f;
+}
+
+.diamond-avatar.delete-mode:hover .frame-1,
+.diamond-avatar.delete-mode:hover .frame-2 {
+  border-color: #d32f2f;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-2deg);
+  }
+  75% {
+    transform: rotate(2deg);
+  }
 }
 </style>

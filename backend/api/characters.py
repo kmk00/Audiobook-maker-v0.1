@@ -157,7 +157,8 @@ def delete_single_character(character_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Character not found")
         
     safe_name = character.name.replace(" ", "_").lower()
-    folder_path = f"characters/{character.id}_{safe_name}"
+    folder_path = f"characters/{safe_name}_{character.id}" 
+    
     if os.path.exists(folder_path):
         shutil.rmtree(folder_path)
         
