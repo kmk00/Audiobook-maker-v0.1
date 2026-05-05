@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useCharacterStore } from "../stores/characterStore";
 import BuilderMode from "../components/BuilderMode.vue";
 import LongTextMode from "../components/LongTextMode.vue";
+import ReZeroMode from "../components/ReZeroMode.vue";
 
 const characterStore = useCharacterStore();
 
@@ -219,6 +220,12 @@ const displayCharacterName = computed(() => {
           >
             LONG TEXT
           </button>
+          <button
+            :class="['nav-btn', { active: currentMode === 'rezero' }]"
+            @click="currentMode = 'rezero'"
+          >
+            RE:ZERO MODE
+          </button>
         </div>
       </div>
       <BuilderMode
@@ -227,6 +234,10 @@ const displayCharacterName = computed(() => {
       />
       <LongTextMode
         v-else-if="currentMode === 'longtext'"
+        :activeCharacter="activeCharacter"
+      />
+      <ReZeroMode
+        v-else-if="currentMode === 'rezero'"
         :activeCharacter="activeCharacter"
       />
     </section>

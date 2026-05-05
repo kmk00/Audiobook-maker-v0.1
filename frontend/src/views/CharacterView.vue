@@ -22,18 +22,19 @@ const toaster = createToaster({
 
 const form = reactive({
   avatar: null,
-  characterName: "dsadsa",
+  characterName: "",
   category: "",
   tags: [],
   description: "",
   provider: "",
-  textToGenerate: "Please tell me a secret, but be honest.",
+  textToGenerate: "",
 
   voiceToClone: null,
   xttsLanguage: "en",
   qwenLanguage: "English",
   voicePrompt: "",
   qwenTimbre: "Timbre 1",
+  referenceTranscript: "",
 
   omnivoiceMode: "voice_design",
   omniGender: "male",
@@ -162,6 +163,12 @@ const validateQwenBaseForm = () => {
     toaster.warning("Podaj tekst do wygenerowania głosu!");
     return false;
   }
+
+  if (!form.referenceTranscript) {
+    toaster.warning("Podaj transkrypcję głosu referencyjnego!");
+    return false;
+  }
+
   return true;
 };
 
@@ -214,6 +221,7 @@ const generateVoice = async () => {
       if (!validateQwenBaseForm()) return;
       payload.voiceToClone = form.voiceToClone?.name || null;
       payload.voicePrompt = form.voicePrompt;
+      payload.ref_text = form.referenceTranscript;
       break;
     case "omnivoice":
       payload.mode = form.omnivoiceMode;
@@ -283,6 +291,9 @@ const saveCharacter = async () => {
   const options = {};
   if (form.provider === "qwen_custom") {
     options.timbre = form.qwenTimbre;
+  } else if (form.provider === "qwen_base") {
+    options.voiceToClone = form.voiceToClone?.name || null;
+    options.ref_text = form.referenceTranscript;
   } else if (form.provider === "omnivoice") {
     options.mode = form.omnivoiceMode;
     if (form.omnivoiceMode === "voice_design") {
@@ -451,7 +462,7 @@ onBeforeRouteLeave(async (to, from, next) => {
           <option value="coqui_xtts_v2">1. XTTS</option>
           <option value="qwen_design">2. QWEN DESIGN</option>
           <option value="qwen_custom">3. QWEN CUSTOM</option>
-          <!-- <option value="qwen_base">4. QWEN BASE</option> -->
+          <option value="qwen_base">4. QWEN BASE</option>
           <option value="omnivoice">5. OMNIVOICE</option>
         </select>
       </label>
@@ -573,6 +584,15 @@ onBeforeRouteLeave(async (to, from, next) => {
             accept="audio/*"
             @change="handleFileUpload('voiceToClone', $event)"
           />
+        </label>
+
+        <label for="qwen-base-transcript">
+          Transkrypcja głosu (Tekst referencyjny)
+          <textarea
+            id="qwen-base-transcript"
+            v-model="form.referenceTranscript"
+            placeholder="Wpisz dokładnie to, co mówi lektor w załączonym pliku audio..."
+          ></textarea>
         </label>
       </template>
 
