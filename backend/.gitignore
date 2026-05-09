@@ -6,3 +6,7 @@ audiobooks/testy
 audiobooks/tested
 audiobooks/audio
 requrement_xtts_worker.txt
+
+*.db
+backend/audiobooks/output/
+backend/characters/
