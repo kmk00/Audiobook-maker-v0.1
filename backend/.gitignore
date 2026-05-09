@@ -8,5 +8,5 @@ audiobooks/audio
 requrement_xtts_worker.txt
 
 *.db
-backend/audiobooks/output/
-backend/characters/
+audiobooks/output/
+characters/
