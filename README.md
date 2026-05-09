@@ -91,6 +91,11 @@ Dzięki systemowi Background Tasks i odpytywaniu o status (Polling), użytkownik
 
 # Przykłady Wygenerowanych Treści
 
-TODO: Dodać przykładowe nagrania audio wygenerowane przez aplikację, pokazujące różne głosy i role.
+| Narzędzie   | Opis |
+|-------------|------|
+| Classroom of the elite chapter 1     | [omnivoice clone.wav](https://github.com/user-attachments/files/27531856/omnivoice.clone.wav) |
+| Re zero- Web novel -Arc 10, Phase 1      | https://www.youtube.com/watch?v=3JF9fvXN3Vo|
+
+
 
 
