@@ -177,9 +177,9 @@ const transcribeBubbles = async (pageIndex) => {
   }
 };
 
-// --- PRZESUWANIE POZYCJI STRZAŁKAMI ---
+// --- PRZESUWANIE POZYCJI STRZAŁKAMI I RĘCZNIE ---
 const moveBlockUp = (pageIndex, blockIdx) => {
-  if (blockIdx === 0) return; // Już jest na samej górze
+  if (blockIdx === 0) return;
   const blocks = pages.value[pageIndex].blocks;
   const item = blocks.splice(blockIdx, 1)[0];
   blocks.splice(blockIdx - 1, 0, item);
@@ -187,9 +187,34 @@ const moveBlockUp = (pageIndex, blockIdx) => {
 
 const moveBlockDown = (pageIndex, blockIdx) => {
   const blocks = pages.value[pageIndex].blocks;
-  if (blockIdx === blocks.length - 1) return; // Już jest na samym dole
+  if (blockIdx === blocks.length - 1) return;
   const item = blocks.splice(blockIdx, 1)[0];
   blocks.splice(blockIdx + 1, 0, item);
+};
+
+const updateBlockPosition = (pageIndex, oldIndex, event) => {
+  const blocks = pages.value[pageIndex].blocks;
+  let newIndex = parseInt(event.target.value, 10) - 1;
+
+  // Weryfikacja: jeśli ktoś wpisze litery, wracamy do poprzedniej wartości
+  if (isNaN(newIndex)) {
+    event.target.value = oldIndex + 1;
+    return;
+  }
+
+  // Ograniczenia granic (nie mniej niż 0, nie więcej niż długość tablicy)
+  if (newIndex < 0) newIndex = 0;
+  if (newIndex >= blocks.length) newIndex = blocks.length - 1;
+
+  // Wymuszenie zaktualizowania inputa w przypadku wpisania np. "999" (zmieni na maksa)
+  event.target.value = newIndex + 1;
+
+  // Jeśli pozycja się nie zmieniła, nic nie robimy
+  if (oldIndex === newIndex) return;
+
+  // Przesunięcie elementu w tablicy
+  const item = blocks.splice(oldIndex, 1)[0];
+  blocks.splice(newIndex, 0, item);
 };
 
 // --- PRZYPISANIE POSTACI ---
@@ -202,7 +227,6 @@ const assignCharacterToBlock = (pageIndex, blockId) => {
   const block = pages.value[pageIndex].blocks.find((b) => b.id === blockId);
   if (!block) return;
 
-  // Odklejanie postaci
   if (block.characterId === props.activeCharacter.id) {
     block.characterId = null;
     block.characterName = "Nieprzypisany";
@@ -210,7 +234,6 @@ const assignCharacterToBlock = (pageIndex, blockId) => {
     return;
   }
 
-  // Przyklejanie postaci
   block.characterId = props.activeCharacter.id;
   block.characterName = props.activeCharacter.name;
   block.avatar = props.activeCharacter.avatar_path;
@@ -369,7 +392,7 @@ const pollTaskStatus = async (taskId, pageIndex) => {
             v-if="page.status === 'ready' || page.status === 'done'"
           >
             <p class="panel-desc">
-              Ustal kolejność czytania używając strzałek.
+              Ustal kolejność czytania klikając w strzałki lub wpisując numer.
             </p>
 
             <transition-group name="list" tag="div" class="script-list">
@@ -378,28 +401,36 @@ const pollTaskStatus = async (taskId, pageIndex) => {
                 v-for="(block, blockIdx) in page.blocks"
                 :key="block.id"
               >
-                <!-- NOWE ZARZĄDZANIE KOLEJNOŚCIĄ -->
-                <div class="move-controls">
-                  <button
-                    class="move-btn"
-                    title="Przesuń wyżej"
-                    :disabled="blockIdx === 0"
-                    @click="moveBlockUp(pageIdx, blockIdx)"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    class="move-btn"
-                    title="Przesuń niżej"
-                    :disabled="blockIdx === page.blocks.length - 1"
-                    @click="moveBlockDown(pageIdx, blockIdx)"
-                  >
-                    ▼
-                  </button>
-                </div>
+                <!-- KONTROLKI KOLEJNOŚCI -->
+                <div class="order-controls">
+                  <div class="move-controls">
+                    <button
+                      class="move-btn"
+                      title="Przesuń wyżej"
+                      :disabled="blockIdx === 0"
+                      @click="moveBlockUp(pageIdx, blockIdx)"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      class="move-btn"
+                      title="Przesuń niżej"
+                      :disabled="blockIdx === page.blocks.length - 1"
+                      @click="moveBlockDown(pageIdx, blockIdx)"
+                    >
+                      ▼
+                    </button>
+                  </div>
 
-                <div class="badge-num" title="Kolejność czytania">
-                  {{ blockIdx + 1 }}
+                  <input
+                    type="number"
+                    class="order-input"
+                    title="Kolejność czytania (wpisz i kliknij poza polem)"
+                    :value="blockIdx + 1"
+                    @change="updateBlockPosition(pageIdx, blockIdx, $event)"
+                    min="1"
+                    :max="page.blocks.length"
+                  />
                 </div>
 
                 <button
@@ -717,7 +748,6 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   gap: 10px;
 }
 
-/* Animacja przejścia Vue dla zmiany kolejności */
 .list-move {
   transition: transform 0.3s ease;
 }
@@ -735,7 +765,13 @@ const pollTaskStatus = async (taskId, pageIndex) => {
     background-color 0.2s;
 }
 
-/* Nowe kontrolki - Strzałki */
+/* KONTROLKI KOLEJNOŚCI */
+.order-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .move-controls {
   display: flex;
   flex-direction: column;
@@ -761,21 +797,47 @@ const pollTaskStatus = async (taskId, pageIndex) => {
 .move-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  border-color: rgba(60, 42, 33, 0.3); /* Transparent brown */
+  border-color: rgba(60, 42, 33, 0.3);
 }
 
-.badge-num {
+.order-input {
+  width: 40px;
+  height: 30px;
+  text-align: center;
   background-color: var(--col-brown);
   color: var(--col-light);
   font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  /* Pozbycie się natywnych strzałek w niektórych przeglądarkach */
+  -moz-appearance: textfield;
+}
+.order-input::-webkit-outer-spin-button,
+.order-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.order-input:focus {
+  outline: 2px solid var(--col-orange);
+  background-color: var(--col-dark);
+}
+
+.box-badge {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  background-color: var(--col-dark);
+  color: var(--col-light);
+  font-weight: bold;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 0.8rem;
-  flex-shrink: 0;
+  font-size: 0.7rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .script-assign-btn {
@@ -858,20 +920,18 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   width: 100%;
   height: auto;
   display: block;
-  pointer-events: none; /* Żeby obrazek nie łapał się przy rysowaniu */
+  pointer-events: none;
 }
 
-/* Bounding Box Base */
 .bounding-box {
   position: absolute;
   border-radius: 4px;
   transition:
     background-color 0.2s,
     border-color 0.2s;
-  pointer-events: none; /* Domyślnie brak reakcji */
+  pointer-events: none;
 }
 
-/* Bounding Box w trybie rysowania (Review) */
 .bounding-box.review-mode {
   border: 2px dashed rgba(211, 47, 47, 0.8);
   pointer-events: auto;
@@ -883,14 +943,13 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   border-color: #d32f2f;
 }
 
-/* Bounding Box po zatwierdzeniu tekstu (Ready) */
 .bounding-box.ready-mode {
-  border: 2px dashed rgba(60, 42, 33, 0.5); /* Lekko brązowy, nie przeszkadza */
-  pointer-events: auto; /* Aktywne na kliknięcia! */
-  cursor: pointer; /* Kursor rączki */
+  border: 2px dashed rgba(60, 42, 33, 0.5);
+  pointer-events: auto;
+  cursor: pointer;
 }
 .bounding-box.ready-mode:hover {
-  background-color: rgba(255, 165, 0, 0.3); /* Przyjemny pomarańcz na hover */
+  background-color: rgba(255, 165, 0, 0.3);
   border-style: solid;
   border-color: var(--col-orange);
 }
@@ -904,23 +963,6 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   background-color: rgba(255, 165, 0, 0.2);
   border: 3px solid var(--col-orange);
   pointer-events: none;
-}
-
-.box-badge {
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  background-color: var(--col-dark);
-  color: var(--col-light);
-  font-weight: bold;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 0.7rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .remove-box-btn {
