@@ -177,28 +177,22 @@ const transcribeBubbles = async (pageIndex) => {
   }
 };
 
-// --- NAPRAWIONY KULOODPORNY DRAG & DROP ---
-const draggedIndex = ref(null);
-
-const onDragStart = (e, index) => {
-  draggedIndex.value = index;
-  // Ten kod jest niezbędny by Firefox i nowy Chrome odpaliły drag&drop
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", index);
+// --- PRZESUWANIE POZYCJI STRZAŁKAMI ---
+const moveBlockUp = (pageIndex, blockIdx) => {
+  if (blockIdx === 0) return; // Już jest na samej górze
+  const blocks = pages.value[pageIndex].blocks;
+  const item = blocks.splice(blockIdx, 1)[0];
+  blocks.splice(blockIdx - 1, 0, item);
 };
 
-const onDragEnd = () => {
-  draggedIndex.value = null;
+const moveBlockDown = (pageIndex, blockIdx) => {
+  const blocks = pages.value[pageIndex].blocks;
+  if (blockIdx === blocks.length - 1) return; // Już jest na samym dole
+  const item = blocks.splice(blockIdx, 1)[0];
+  blocks.splice(blockIdx + 1, 0, item);
 };
 
-const onDrop = (e, page, targetIndex) => {
-  if (draggedIndex.value === null) return;
-  const item = page.blocks.splice(draggedIndex.value, 1)[0];
-  page.blocks.splice(targetIndex, 0, item);
-  draggedIndex.value = null;
-};
-
-// --- PRZYPISANIE POSTACI (TERAZ DZIAŁA TEŻ Z KLIKNIĘCIA W RAMKĘ) ---
+// --- PRZYPISANIE POSTACI ---
 const assignCharacterToBlock = (pageIndex, blockId) => {
   if (!props.activeCharacter) {
     toaster.warning("Wybierz najpierw postać z lewego panelu bocznego!");
@@ -374,25 +368,36 @@ const pollTaskStatus = async (taskId, pageIndex) => {
             class="script-panel"
             v-if="page.status === 'ready' || page.status === 'done'"
           >
-            <p class="panel-desc">Ustal kolejność czytania chwytając za ☰.</p>
+            <p class="panel-desc">
+              Ustal kolejność czytania używając strzałek.
+            </p>
 
-            <div
-              class="script-list"
-              :class="{ 'is-dragging-global': draggedIndex !== null }"
-            >
+            <transition-group name="list" tag="div" class="script-list">
               <div
                 class="script-item"
                 v-for="(block, blockIdx) in page.blocks"
                 :key="block.id"
-                draggable="true"
-                :class="{ 'is-dragged-item': draggedIndex === blockIdx }"
-                @dragstart="onDragStart($event, blockIdx)"
-                @dragend="onDragEnd"
-                @dragover.prevent
-                @dragenter.prevent
-                @drop.prevent="onDrop($event, page, blockIdx)"
               >
-                <div class="drag-handle" title="Przesuń wyżej/niżej">☰</div>
+                <!-- NOWE ZARZĄDZANIE KOLEJNOŚCIĄ -->
+                <div class="move-controls">
+                  <button
+                    class="move-btn"
+                    title="Przesuń wyżej"
+                    :disabled="blockIdx === 0"
+                    @click="moveBlockUp(pageIdx, blockIdx)"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    class="move-btn"
+                    title="Przesuń niżej"
+                    :disabled="blockIdx === page.blocks.length - 1"
+                    @click="moveBlockDown(pageIdx, blockIdx)"
+                  >
+                    ▼
+                  </button>
+                </div>
+
                 <div class="badge-num" title="Kolejność czytania">
                   {{ blockIdx + 1 }}
                 </div>
@@ -417,7 +422,7 @@ const pollTaskStatus = async (taskId, pageIndex) => {
                   placeholder="Tekst..."
                 ></textarea>
               </div>
-            </div>
+            </transition-group>
           </div>
 
           <div
@@ -712,10 +717,9 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   gap: 10px;
 }
 
-/* Ochrona przed pożeraniem eventów Drag&Drop przez dzieci */
-.script-list.is-dragging-global .script-textarea,
-.script-list.is-dragging-global .script-assign-btn {
-  pointer-events: none;
+/* Animacja przejścia Vue dla zmiany kolejności */
+.list-move {
+  transition: transform 0.3s ease;
 }
 
 .script-item {
@@ -726,26 +730,38 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   border: 2px solid var(--col-brown);
   padding: 8px;
   border-radius: 8px;
-  cursor: grab;
   transition:
     opacity 0.2s,
     background-color 0.2s;
 }
 
-.script-item.is-dragged-item {
-  opacity: 0.4;
-  background-color: var(--col-orange);
+/* Nowe kontrolki - Strzałki */
+.move-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.drag-handle {
-  cursor: grab;
+.move-btn {
+  background: var(--col-light);
+  border: 1px solid var(--col-brown);
+  border-radius: 4px;
   color: var(--col-brown);
-  font-size: 1.2rem;
-  opacity: 0.5;
-  font-family: sans-serif;
+  cursor: pointer;
+  font-size: 0.6rem;
+  padding: 3px 6px;
+  transition: all 0.2s;
 }
-.drag-handle:hover {
-  opacity: 1;
+
+.move-btn:hover:not(:disabled) {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+}
+
+.move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: rgba(60, 42, 33, 0.3); /* Transparent brown */
 }
 
 .badge-num {
