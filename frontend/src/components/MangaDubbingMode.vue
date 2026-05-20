@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { createToaster } from "@meforma/vue-toaster";
 import LoadingOverlay from "./LoadingOverlay.vue";
+import draggable from "vuedraggable";
 
 const props = defineProps({
   activeCharacter: Object,
@@ -13,6 +14,7 @@ const loadingText = ref("");
 
 const ocrLanguage = ref("ja");
 const pages = ref([]);
+const isDragging = ref(false);
 
 const handleFileUpload = (event) => {
   const files = event.target.files;
@@ -239,6 +241,18 @@ const assignCharacterToBlock = (pageIndex, blockId) => {
   block.avatar = props.activeCharacter.avatar_path;
 };
 
+const onBlocksReorder = (pageIndex, newBlocks) => {
+  if (!Array.isArray(newBlocks)) {
+    console.error("newBlocks nie jest tablicą:", newBlocks);
+    return;
+  }
+  if (!pages.value[pageIndex]) {
+    console.error("Nie znaleziono strony o indeksie:", pageIndex);
+    return;
+  }
+  pages.value[pageIndex].blocks = [...newBlocks];
+};
+
 const getAvatarUrl = (path) => {
   if (!path) return "/emilia.png";
   return `http://127.0.0.1:8000/${path.replace("characters/", "static_characters/")}`;
@@ -389,71 +403,89 @@ const pollTaskStatus = async (taskId, pageIndex) => {
         <div class="manga-workspace">
           <div
             class="script-panel"
+            :class="{ 'no-select': isDragging }"
             v-if="page.status === 'ready' || page.status === 'done'"
           >
             <p class="panel-desc">
               Ustal kolejność czytania klikając w strzałki lub wpisując numer.
             </p>
 
-            <transition-group name="list" tag="div" class="script-list">
-              <div
-                class="script-item"
-                v-for="(block, blockIdx) in page.blocks"
-                :key="block.id"
-              >
-                <!-- KONTROLKI KOLEJNOŚCI -->
-                <div class="order-controls">
-                  <div class="move-controls">
-                    <button
-                      class="move-btn"
-                      title="Przesuń wyżej"
-                      :disabled="blockIdx === 0"
-                      @click="moveBlockUp(pageIdx, blockIdx)"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      class="move-btn"
-                      title="Przesuń niżej"
-                      :disabled="blockIdx === page.blocks.length - 1"
-                      @click="moveBlockDown(pageIdx, blockIdx)"
-                    >
-                      ▼
-                    </button>
+            <draggable
+              :model-value="page.blocks"
+              @update:model-value="
+                (newBlocks) => onBlocksReorder(pageIdx, newBlocks)
+              "
+              tag="div"
+              :class="{ 'is-dragging': isDragging }"
+              item-key="id"
+              handle=".drag-handle"
+              :animation="200"
+              :force-fallback="true"
+              @start="isDragging = true"
+              @end="isDragging = false"
+            >
+              <template #item="{ element: block, index: blockIdx }">
+                <div class="script-item" :key="block.id">
+                  <!-- Uchwyt do przeciągania: -->
+                  <span
+                    class="drag-handle"
+                    title="Przeciągnij, by zmienić kolejność"
+                    >⠿</span
+                  >
+                  <!-- KONTROLKI KOLEJNOŚCI -->
+                  <div class="order-controls">
+                    <div class="move-controls">
+                      <button
+                        class="move-btn"
+                        title="Przesuń wyżej"
+                        :disabled="blockIdx === 0"
+                        @click="moveBlockUp(pageIdx, blockIdx)"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        class="move-btn"
+                        title="Przesuń niżej"
+                        :disabled="blockIdx === page.blocks.length - 1"
+                        @click="moveBlockDown(pageIdx, blockIdx)"
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    <input
+                      type="number"
+                      class="order-input"
+                      title="Kolejność czytania (wpisz i kliknij poza polem)"
+                      :value="blockIdx + 1"
+                      @change="updateBlockPosition(pageIdx, blockIdx, $event)"
+                      min="1"
+                      :max="page.blocks.length"
+                    />
                   </div>
 
-                  <input
-                    type="number"
-                    class="order-input"
-                    title="Kolejność czytania (wpisz i kliknij poza polem)"
-                    :value="blockIdx + 1"
-                    @change="updateBlockPosition(pageIdx, blockIdx, $event)"
-                    min="1"
-                    :max="page.blocks.length"
-                  />
+                  <button
+                    class="script-assign-btn"
+                    :class="{ assigned: block.characterId }"
+                    title="Kliknij, by przypisać postać z lewego menu"
+                    @click="assignCharacterToBlock(pageIdx, block.id)"
+                  >
+                    <img
+                      v-if="block.avatar"
+                      :src="getAvatarUrl(block.avatar)"
+                      class="assigned-micro-avatar"
+                    />
+                    <span v-else>+</span>
+                  </button>
+
+                  <textarea
+                    v-model="block.text"
+                    class="script-textarea"
+                    placeholder="Tekst..."
+                  ></textarea>
                 </div>
-
-                <button
-                  class="script-assign-btn"
-                  :class="{ assigned: block.characterId }"
-                  title="Kliknij, by przypisać postać z lewego menu"
-                  @click="assignCharacterToBlock(pageIdx, block.id)"
-                >
-                  <img
-                    v-if="block.avatar"
-                    :src="getAvatarUrl(block.avatar)"
-                    class="assigned-micro-avatar"
-                  />
-                  <span v-else>+</span>
-                </button>
-
-                <textarea
-                  v-model="block.text"
-                  class="script-textarea"
-                  placeholder="Tekst..."
-                ></textarea>
-              </div>
-            </transition-group>
+              </template>
+            </draggable>
           </div>
 
           <div
@@ -1037,5 +1069,35 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   height: 40px;
   border-radius: 20px;
   outline: none;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--col-brown);
+  font-size: 1.2rem;
+  padding: 0 4px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.drag-handle:hover {
+  opacity: 1;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.no-select {
+  user-select: none;
+}
+
+:deep(.sortable-ghost) {
+  opacity: 0.3;
+  background-color: var(--col-brown) !important;
+}
+
+:deep(.sortable-fallback) {
+  opacity: 0.85 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  transform: rotate(1deg);
 }
 </style>
