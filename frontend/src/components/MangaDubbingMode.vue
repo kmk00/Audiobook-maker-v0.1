@@ -76,6 +76,14 @@ const detectBubbles = async (pageIndex) => {
   }
 };
 
+// --- POMINIĘCIE AI (RYSUJ RĘCZNIE) ---
+const startManualMode = (pageIndex) => {
+  const page = pages.value[pageIndex];
+  page.blocks = [];
+  page.status = "review_boxes";
+  toaster.info("Możesz teraz ręcznie zaznaczyć dymki na obrazku.");
+};
+
 // --- RYSOWANIE WŁASNYCH RAMEK ---
 const isDrawing = ref(false);
 const startPoint = ref({ x: 0, y: 0 });
@@ -198,23 +206,18 @@ const updateBlockPosition = (pageIndex, oldIndex, event) => {
   const blocks = pages.value[pageIndex].blocks;
   let newIndex = parseInt(event.target.value, 10) - 1;
 
-  // Weryfikacja: jeśli ktoś wpisze litery, wracamy do poprzedniej wartości
   if (isNaN(newIndex)) {
     event.target.value = oldIndex + 1;
     return;
   }
 
-  // Ograniczenia granic (nie mniej niż 0, nie więcej niż długość tablicy)
   if (newIndex < 0) newIndex = 0;
   if (newIndex >= blocks.length) newIndex = blocks.length - 1;
 
-  // Wymuszenie zaktualizowania inputa w przypadku wpisania np. "999" (zmieni na maksa)
   event.target.value = newIndex + 1;
 
-  // Jeśli pozycja się nie zmieniła, nic nie robimy
   if (oldIndex === newIndex) return;
 
-  // Przesunięcie elementu w tablicy
   const item = blocks.splice(oldIndex, 1)[0];
   blocks.splice(newIndex, 0, item);
 };
@@ -354,6 +357,7 @@ const pollTaskStatus = async (taskId, pageIndex) => {
             id="manga-upload"
             accept="image/*"
             @change="handleFileUpload"
+            multiple
             hidden
           />
         </div>
@@ -374,8 +378,17 @@ const pollTaskStatus = async (taskId, pageIndex) => {
               class="nav-btn action-btn"
               @click="detectBubbles(pageIdx)"
             >
-              1. ZNAJDŹ DYMKI
+              1. ZNAJDŹ DYMKI (AI)
             </button>
+
+            <button
+              v-if="page.status === 'idle'"
+              class="nav-btn action-btn"
+              @click="startManualMode(pageIdx)"
+            >
+              LUB RYSUJ RĘCZNIE
+            </button>
+
             <button
               v-if="page.status === 'review_boxes'"
               class="nav-btn action-btn highlight"
@@ -407,7 +420,8 @@ const pollTaskStatus = async (taskId, pageIndex) => {
             v-if="page.status === 'ready' || page.status === 'done'"
           >
             <p class="panel-desc">
-              Ustal kolejność czytania klikając w strzałki lub wpisując numer.
+              Ustal kolejność czytania klikając w strzałki, wpisując numer lub
+              chwytając za ⠿.
             </p>
 
             <draggable
@@ -426,13 +440,11 @@ const pollTaskStatus = async (taskId, pageIndex) => {
             >
               <template #item="{ element: block, index: blockIdx }">
                 <div class="script-item" :key="block.id">
-                  <!-- Uchwyt do przeciągania: -->
                   <span
                     class="drag-handle"
                     title="Przeciągnij, by zmienić kolejność"
                     >⠿</span
                   >
-                  <!-- KONTROLKI KOLEJNOŚCI -->
                   <div class="order-controls">
                     <div class="move-controls">
                       <button
@@ -483,6 +495,14 @@ const pollTaskStatus = async (taskId, pageIndex) => {
                     class="script-textarea"
                     placeholder="Tekst..."
                   ></textarea>
+
+                  <button
+                    class="remove-script-btn"
+                    title="Usuń tę kwestię"
+                    @click="removeBox(pageIdx, block.id)"
+                  >
+                    ✖
+                  </button>
                 </div>
               </template>
             </draggable>
@@ -842,7 +862,6 @@ const pollTaskStatus = async (taskId, pageIndex) => {
   border: none;
   border-radius: 6px;
   font-size: 0.9rem;
-  /* Pozbycie się natywnych strzałek w niektórych przeglądarkach */
   -moz-appearance: textfield;
 }
 .order-input::-webkit-outer-spin-button,
@@ -910,6 +929,20 @@ const pollTaskStatus = async (taskId, pageIndex) => {
 .script-textarea:focus {
   outline: none;
   border-color: var(--col-orange);
+}
+
+/* NOWY PRZYCISK USUWANIA Z LISTY */
+.remove-script-btn {
+  background: transparent;
+  border: none;
+  color: #d32f2f;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 5px;
+  transition: transform 0.2s;
+}
+.remove-script-btn:hover {
+  transform: scale(1.2);
 }
 
 .image-panel {
