@@ -5,6 +5,9 @@ Aplikacja desktopowa, umożliwiająca tworzenie profesjonalnych audiobooków z p
 # O projekcie
 Projekt powstał z potrzeby stworzenia narzędzia, które potrafi przekształcić całe książki (PDF, EPUB, TXT) w słuchowiska bez konieczności korzystania z płatnych i ograniczonych usług chmurowych. Aplikacja zarządza wieloma mikroserwisami AI, z których każdy operuje na innym modelu (XTTS, Qwen3, OmniVoice), oferując bezprecedensową jakość i spójność głosu.
 
+<img width="1897" height="1013" alt="rezeroaudiobook" src="https://github.com/user-attachments/assets/bef0bbef-c714-4c26-abca-69f4fd3c924f" />
+
+
 # Główne funkcje
 
 - Automatyczne parsowanie plików i generowanie wielogłosowych nagrań z zachowaniem podziału na Narratora i postacie.
