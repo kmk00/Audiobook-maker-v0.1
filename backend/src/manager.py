@@ -2,6 +2,7 @@ from typing import Callable, Dict, Type, Optional
 from uuid import uuid4
 import os
 
+from providers.higgs_network import HiggsNetworkProvider
 from src.base_provider import BaseTTSProvider
 from src.schemas import TTSRequest, TTSResult
 
@@ -27,6 +28,7 @@ class TTSManager:
             "qwen_base": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "provider_name": "qwen_base"}),
             
             "omnivoice": lambda config: OmniVoiceNetworkProvider(config=config),
+            "higgs_tts_3": lambda config: HiggsNetworkProvider(config=config),
         }
         
         self.active_provider: Optional[str] = None
