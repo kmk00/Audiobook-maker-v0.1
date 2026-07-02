@@ -54,6 +54,7 @@ tts_manager.load_provider("qwen_custom")
 tts_manager.load_provider("qwen_design")
 tts_manager.load_provider("qwen_base")
 tts_manager.load_provider("omnivoice")
+tts_manager.load_provider("higgs_tts_3")
 
 def split_into_chunks(text: str, max_chars: int = 1200) -> List[str]:
     """Tnie tekst na zgrabne paczki bez ucinania zdań wpół."""

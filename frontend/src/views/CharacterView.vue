@@ -3,7 +3,7 @@ import { reactive, ref, computed } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { useCharacterStore } from "../stores/characterStore";
 import { createToaster } from "@meforma/vue-toaster";
-import LoadingOverlay from "../components/LoadingOverlay.vue"; // IMPORT LOADERA
+import LoadingOverlay from "../components/LoadingOverlay.vue";
 
 const characterStore = useCharacterStore();
 
@@ -43,6 +43,9 @@ const form = reactive({
   omniStyle: "",
   omniAccent: "",
   omniDialect: "",
+
+  higgsLanguage: "English",
+  higgsReferenceTranscript: "",
 });
 
 const availableTags = computed(() => {
@@ -193,6 +196,22 @@ const validateOmnivoiceForm = (mode) => {
   return true;
 };
 
+const validateHiggsForm = () => {
+  if (!form.textToGenerate) {
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
+    return false;
+  }
+  if (!form.higgsLanguage) {
+    toaster.warning("Wybierz język!");
+    return false;
+  }
+  if (form.voiceToClone && !form.higgsReferenceTranscript) {
+    toaster.warning("Podaj tekst referencyjny dla wgranego głosu!");
+    return false;
+  }
+  return true;
+};
+
 const generateVoice = async () => {
   if (!validateForm()) return;
 
@@ -238,6 +257,14 @@ const generateVoice = async () => {
       } else {
         payload.voiceToClone = form.voiceToClone?.name || null;
       }
+      break;
+
+    case "higgs_tts_3":
+      if (!validateHiggsForm()) return;
+      payload.language = form.higgsLanguage;
+      payload.voiceToClone = form.voiceToClone?.name || null;
+      payload.ref_text = form.higgsReferenceTranscript;
+      payload.voicePrompt = form.voicePrompt;
       break;
   }
 
@@ -286,6 +313,8 @@ const saveCharacter = async () => {
   let lang = "";
   if (form.provider === "coqui_xtts_v2") lang = form.xttsLanguage;
   if (form.provider === "qwen_design") lang = form.qwenLanguage;
+  if (form.provider === "higgs_tts_3") lang = form.higgsLanguage;
+
   if (lang) formData.append("language", lang);
 
   const options = {};
@@ -304,7 +333,11 @@ const saveCharacter = async () => {
       options.accent = form.omniAccent;
       options.dialect = form.omniDialect;
     }
+  } else if (form.provider === "higgs_tts_3") {
+    options.voiceToClone = form.voiceToClone?.name || null;
+    options.ref_text = form.higgsReferenceTranscript;
   }
+
   formData.append("provider_options", JSON.stringify(options));
   if (tempAudioPath.value) {
     formData.append("temp_preview_path", tempAudioPath.value);
@@ -464,6 +497,7 @@ onBeforeRouteLeave(async (to, from, next) => {
           <option value="qwen_custom">3. QWEN CUSTOM</option>
           <option value="qwen_base">4. QWEN BASE</option>
           <option value="omnivoice">5. OMNIVOICE</option>
+          <option value="higgs_tts_3">6. HIGGS TTS 3</option>
         </select>
       </label>
 
@@ -672,6 +706,59 @@ onBeforeRouteLeave(async (to, from, next) => {
             />
           </label>
         </template>
+      </template>
+
+      <template v-if="form.provider === 'higgs_tts_3'">
+        <label for="higgs-lang">
+          Język (Higgs wspiera 100+ języków)
+          <select id="higgs-lang" v-model="form.higgsLanguage">
+            <option value="English">English</option>
+            <option value="Polish">Polish</option>
+            <option value="Japanese">Japanese</option>
+            <option value="German">German</option>
+            <option value="Spanish">Spanish</option>
+            <option value="French">French</option>
+            <option value="Chinese">Chinese</option>
+          </select>
+        </label>
+
+        <label for="voice-prompt">
+          Domyślne Emocje i Instrukcje
+          <input
+            type="text"
+            id="voice-prompt"
+            v-model="form.voicePrompt"
+            placeholder="np. <|emotion:amusement|><|prosody:expressive_high|>"
+          />
+          <div class="prompt-examples">
+            <p class="prompt-example" style="margin-top: 5px">
+              Możesz tu wpisać domyślne tagi Higgsa (zostaną dodane na początek
+              tekstu). Przykłady emocji: &lt;|emotion:amusement|&gt;,
+              &lt;|emotion:anger|&gt;, &lt;|emotion:sadness|&gt;. Style:
+              &lt;|style:whispering|&gt;, &lt;|style:shouting|&gt;. Prosodia:
+              &lt;|prosody:speed_fast|&gt;, &lt;|prosody:expressive_high|&gt;.
+            </p>
+          </div>
+        </label>
+
+        <label for="voice-to-clone">
+          Wybierz głos do sklonowania (Opcjonalnie)
+          <input
+            type="file"
+            id="voice-to-clone"
+            accept="audio/*"
+            @change="handleFileUpload('voiceToClone', $event)"
+          />
+        </label>
+
+        <label for="higgs-base-transcript" v-if="form.voiceToClone">
+          Transkrypcja głosu klonowanego
+          <textarea
+            id="higgs-base-transcript"
+            v-model="form.higgsReferenceTranscript"
+            placeholder="Wpisz dokładnie to, co mówi lektor w powyższym nagraniu..."
+          ></textarea>
+        </label>
       </template>
 
       <label v-if="form.provider" for="text-to-generate">
