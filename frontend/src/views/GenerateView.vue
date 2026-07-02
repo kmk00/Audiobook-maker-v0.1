@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useCharacterStore } from "../stores/characterStore";
+import { createToaster } from "@meforma/vue-toaster";
 import BuilderMode from "../components/BuilderMode.vue";
 import LongTextMode from "../components/LongTextMode.vue";
 import ReZeroMode from "../components/ReZeroMode.vue";
-import { createToaster } from "@meforma/vue-toaster";
+import MangaDubbingMode from "../components/MangaDubbingMode.vue";
+import MultiFilesMode from "../components/MultiFilesMode.vue";
 
 const characterStore = useCharacterStore();
 
@@ -279,6 +281,18 @@ const displayCharacterName = computed(() => {
           >
             RE:ZERO MODE
           </button>
+          <button
+            :class="['nav-btn', { active: currentMode === 'manga-dubbing' }]"
+            @click="currentMode = 'manga-dubbing'"
+          >
+            DUBBING
+          </button>
+          <button
+            :class="['nav-btn', { active: currentMode === 'multifiles' }]"
+            @click="currentMode = 'multifiles'"
+          >
+            MULTI-FILES
+          </button>
         </div>
       </div>
       <BuilderMode
@@ -291,6 +305,14 @@ const displayCharacterName = computed(() => {
       />
       <ReZeroMode
         v-else-if="currentMode === 'rezero'"
+        :activeCharacter="activeCharacter"
+      />
+      <MangaDubbingMode
+        v-else-if="currentMode === 'manga-dubbing'"
+        :activeCharacter="activeCharacter"
+      />
+      <MultiFilesMode
+        v-else-if="currentMode === 'multifiles'"
         :activeCharacter="activeCharacter"
       />
     </section>
