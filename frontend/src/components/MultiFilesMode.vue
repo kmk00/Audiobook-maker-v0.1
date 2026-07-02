@@ -479,7 +479,6 @@ const getAvatarUrl = (path) => {
   cursor: not-allowed;
 }
 
-/* Animacja wczytywania */
 .spinner {
   width: 24px;
   height: 24px;
