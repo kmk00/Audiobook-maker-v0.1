@@ -1,0 +1,8 @@
+fastapi
+pydantic
+uvicorn
+soundfile
+accelerate
+transformers
+pydub
+omnivoice

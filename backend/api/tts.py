@@ -1,6 +1,7 @@
 import re
 import subprocess
 from typing import Any, List, Optional
+import traceback
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -49,7 +50,7 @@ def clear_temp_directory():
                 pass
 
 tts_manager = TTSManager(output_dir=TEMP_AUDIO_DIR)
-tts_manager.load_provider("coqui_xtts_v2")
+# tts_manager.load_provider("coqui_xtts_v2")
 tts_manager.load_provider("qwen_custom")
 tts_manager.load_provider("qwen_design")
 tts_manager.load_provider("qwen_base")
@@ -119,14 +120,14 @@ def generate_speech(
         result = tts_manager.generate_audio(request, provider_override=provider)
         filename = os.path.basename(result.audio_path)
         result.audio_path = f"/audio/temp/{filename}"
-        
         return result
-        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
+        print(f"[tts/generate] RuntimeError: {e}")
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
+        print(f"[tts/generate] Unexpected error:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")
 
 @router.delete("/temp")

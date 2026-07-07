@@ -1,0 +1,44 @@
+services:
+
+  # 1. BACKEND API
+  api:
+    build:
+      context: backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - worker-qwen
+      - worker-omnivoice
+
+  # # 3. WORKER QWEN
+  worker-qwen:
+    build:
+      context: backend/workers/qwen
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./backend:/app
+    command: python /app/workers/qwen/qwen_worker.py
+
+  # 4. WORKER OMNIVOICE
+  worker-omnivoice:
+    build:
+      context: backend/workers/omnivoice
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./backend:/app
+    command: python /app/workers/omnivoice/omnivoice_worker.py

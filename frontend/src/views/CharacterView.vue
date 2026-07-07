@@ -284,7 +284,8 @@ const generateVoice = async () => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -294,7 +295,8 @@ const generateVoice = async () => {
 
     toaster.success("Próbka głosu została pomyślnie wygenerowana!");
   } catch (error) {
-    toaster.error("Błąd podczas generowania głosu.");
+    toaster.error("Błąd: " + error.message);
+    console.error("[generateVoice]", error);
   } finally {
     isLoading.value = false;
   }
