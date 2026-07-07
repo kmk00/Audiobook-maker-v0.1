@@ -494,16 +494,16 @@ onBeforeRouteLeave(async (to, from, next) => {
         Wybierz Model
         <select id="provider" v-model="form.provider" required>
           <option value="" disabled>Wybierz Model</option>
-          <option value="coqui_xtts_v2">1. XTTS</option>
+          <!-- <option value="coqui_xtts_v2">1. XTTS</option> -->
+          <option value="omnivoice">1. OMNIVOICE</option>
           <option value="qwen_design">2. QWEN DESIGN</option>
           <option value="qwen_custom">3. QWEN CUSTOM</option>
           <option value="qwen_base">4. QWEN BASE</option>
-          <option value="omnivoice">5. OMNIVOICE</option>
-          <option value="higgs_tts_3">6. HIGGS TTS 3</option>
+          <option value="higgs_tts_3">5. HIGGS TTS 3</option>
         </select>
       </label>
 
-      <template v-if="form.provider === 'coqui_xtts_v2'">
+      <!-- <template v-if="form.provider === 'coqui_xtts_v2'">
         <label for="xtts-lang">
           Język (XTTS)
           <select id="xtts-lang" v-model="form.xttsLanguage">
@@ -523,7 +523,7 @@ onBeforeRouteLeave(async (to, from, next) => {
             @change="handleFileUpload('voiceToClone', $event)"
           />
         </label>
-      </template>
+      </template> -->
 
       <template v-if="form.provider === 'qwen_design'">
         <label for="qwen-lang">
