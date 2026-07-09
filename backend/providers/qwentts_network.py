@@ -10,7 +10,7 @@ class QwenNetworkProvider(BaseTTSProvider):
     
     def setup(self):
         self.model_id = self.config.get("model_id")
-        self.worker_url = "http://127.0.0.1:8002/generate"
+        self.worker_url = "http://worker-qwen:8001/generate"
         print(f"[{self.provider_name}] Provider setup complete with model_id: {self.model_id} and worker URL: {self.worker_url}")
 
     def generate(self, request: TTSRequest, output_path: str) -> TTSResult:

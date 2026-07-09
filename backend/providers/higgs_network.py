@@ -9,7 +9,7 @@ class HiggsNetworkProvider(BaseTTSProvider):
         return "higgs_tts_3"
 
     def setup(self):
-        self.worker_url = "http://127.0.0.1:8004/v1/audio/speech"
+        self.worker_url = "http://worker-higgs:8000/v1/audio/speech"
         print(f"[{self.provider_name}] Provider setup complete. Pointing to worker URL: {self.worker_url}")
 
     def _to_container_path(self, local_voice_path: str) -> str:

@@ -10,7 +10,7 @@ class OmniVoiceNetworkProvider(BaseTTSProvider):
         return "omnivoice_network"
     
     def setup(self):
-        self.worker_url = "http://127.0.0.1:8003/generate"
+        self.worker_url = "http://worker-omnivoice:8002/generate"
         print(f"[{self.provider_name}] Provider setup complete with worker URL: {self.worker_url}")
         
     def generate(self, request: TTSRequest, output_path: str) -> TTSResult:
