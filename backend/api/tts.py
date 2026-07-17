@@ -262,7 +262,7 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
             cumulative_time = 0.0
             SILENCE_GAP = 0.6
 
-            for global_index, phys_path in generated_audio_files:
+            for idx, (global_index, phys_path) in enumerate(generated_audio_files):
                 task_data = task_lookup[global_index]
                 chunk_duration = get_audio_duration_seconds(phys_path)
 
@@ -289,7 +289,10 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
                         "is_narrator": task_data["character_id"] is None,
                     })
 
-                cumulative_time += chunk_duration + SILENCE_GAP
+                if idx < len(generated_audio_files) - 1:
+                    cumulative_time += chunk_duration + SILENCE_GAP
+                else:
+                    cumulative_time += chunk_duration
 
         tasks_db[task_id] = {"status": "processing", "message": "Trwa błyskawiczne scalanie plików bez zużycia RAM-u..."}
 
@@ -324,9 +327,12 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
                 task_id=task_id,
                 nameplate_cache_dir=NAMEPLATE_CACHE_DIR,
             )
-            result_status["srt_url"] = f"http://127.0.0.1:8000/{timeline_files['srt_path']}"
+            srt_filename = os.path.basename(timeline_files["srt_path"])
+            result_status["srt_url"] = f"http://127.0.0.1:8000/timelines/{srt_filename}"
+
             if timeline_files.get("fcpxml_path"):
-                result_status["fcpxml_url"] = f"http://127.0.0.1:8000/{timeline_files['fcpxml_path']}"
+                fcpxml_filename = os.path.basename(timeline_files["fcpxml_path"])
+                result_status["fcpxml_url"] = f"http://127.0.0.1:8000/timelines/{fcpxml_filename}"
 
         tasks_db[task_id] = result_status
 

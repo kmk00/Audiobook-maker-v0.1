@@ -37,12 +37,42 @@ Oczekiwany kształt wejściowych segmentów (lista dictów):
 
 import os
 from typing import List, Dict, Optional
+import xml.etree.ElementTree as ET
 
 import opentimelineio as otio
 
 from .nameplate_generator import get_or_create_nameplate
 
 FPS = 30
+
+
+def _wrap_project_in_library(fcpxml_path: str, event_name: str = "Audiobook Import") -> None:
+    """
+    Post-processing naprawiający strukturę FCPXML.
+
+    `otio-fcpx-xml-adapter` pisze <project> jako BEZPOŚREDNIE dziecko <fcpxml>,
+    ale DaVinci Resolve (zgodnie ze specyfikacją Apple) wymaga, żeby <project>
+    siedział wewnątrz <library><event>. Bez tego import kończy się błędem
+    "Unable to find inherited value for key 'library'".
+
+    Ta funkcja przenosi <project> do nowo utworzonego <library><event>.
+    """
+    tree = ET.parse(fcpxml_path)
+    root = tree.getroot()  # <fcpxml>
+
+    project = root.find("project")
+    if project is None:
+        return  # już opakowane albo brak projektu - nic do zrobienia
+
+    root.remove(project)
+    library = ET.SubElement(root, "library")
+    event = ET.SubElement(library, "event", {"name": event_name})
+    event.append(project)
+
+    xml_bytes = ET.tostring(root, encoding="utf-8")
+    with open(fcpxml_path, "wb") as f:
+        f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n\n')
+        f.write(xml_bytes)
 
 
 def _sec_to_rt(seconds: float) -> otio.opentime.RationalTime:
@@ -183,6 +213,7 @@ def export_nameplates_fcpxml(
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     otio.adapters.write_to_file(timeline, output_path)
+    _wrap_project_in_library(output_path)
     return output_path
 
 
