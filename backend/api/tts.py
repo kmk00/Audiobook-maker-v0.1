@@ -33,7 +33,10 @@ class AudiobookBlock(BaseModel):
 
 class AudiobookPayload(BaseModel):
     mode: str
+    generate_timeline: bool = True
     blocks: List[AudiobookBlock]
+    
+    
     
     
 OUTPUT_AUDIO_DIR = "audiobooks/output"
@@ -213,7 +216,7 @@ def start_audiobook_generation(
 
 
     tasks_db[task_id] = {"status": "pending", "message": "Rozpoczynamy przygotowania..."}
-    background_tasks.add_task(process_audiobook_task, task_id, prepared_tasks)
+    background_tasks.add_task(process_audiobook_task, task_id, prepared_tasks, payload.generate_timeline)
 
     return {"task_id": task_id}
 
@@ -226,7 +229,7 @@ def check_task_status(task_id: str):
     return tasks_db[task_id]
     
 
-def process_audiobook_task(task_id: str, prepared_tasks: list):
+def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline: bool = True):
     try:
         tasks_db[task_id] = {"status": "processing", "message": f"Generowanie paczek audio (0/{len(prepared_tasks)})..."}
         generated_audio_files = []
@@ -240,56 +243,53 @@ def process_audiobook_task(task_id: str, prepared_tasks: list):
                 voice_prompt=task_data["voice_prompt"],
                 options=task_data["options"]
             )
-
             tasks_db[task_id] = {
                 "status": "processing",
                 "message": f"Wygenerowano {i + 1}/{len(prepared_tasks)} fragmentów..."
             }
-
             result = tts_manager.generate_audio(req, provider_override=task_data["provider"])
-
             phys_path = result.audio_path
             if phys_path.startswith("/audio/temp/"):
                 phys_path = os.path.join(TEMP_AUDIO_DIR, phys_path.split("/")[-1])
-
             generated_audio_files.append((task_data["global_index"], phys_path))
 
         generated_audio_files.sort(key=lambda x: x[0])
 
-        tasks_db[task_id] = {"status": "processing", "message": "Analiza timingu (Whisper)..."}
-
         all_segments = []
-        cumulative_time = 0.0
-        SILENCE_GAP = 0.6  # zgodnie z Twoim silence_600ms.wav
 
-        for global_index, phys_path in generated_audio_files:
-            task_data = task_lookup[global_index]
-            chunk_duration = get_audio_duration_seconds(phys_path)
+        if generate_timeline:
+            tasks_db[task_id] = {"status": "processing", "message": "Analiza timingu (Whisper)..."}
+            cumulative_time = 0.0
+            SILENCE_GAP = 0.6
 
-            try:
-                whisper_words = transcribe_chunk_words(phys_path, language="en")
-            except Exception as whisper_err:
-                print(f"[audiobook] Whisper nie powiódł się dla {phys_path}: {whisper_err}")
-                whisper_words = []
+            for global_index, phys_path in generated_audio_files:
+                task_data = task_lookup[global_index]
+                chunk_duration = get_audio_duration_seconds(phys_path)
 
-            aligned_sentences = align_sentences_to_timestamps(
-                original_text=task_data["text"],
-                whisper_words=whisper_words,
-                chunk_duration=chunk_duration,
-            )
+                try:
+                    whisper_words = transcribe_chunk_words(phys_path, language="en")
+                except Exception as whisper_err:
+                    print(f"[audiobook] Whisper nie powiódł się dla {phys_path}: {whisper_err}")
+                    whisper_words = []
 
-            for sentence in aligned_sentences:
-                all_segments.append({
-                    "start": cumulative_time + sentence["start"],
-                    "end": cumulative_time + sentence["end"],
-                    "text": sentence["text"],
-                    "character_id": task_data["character_id"],
-                    "character_name": task_data["character_name"],
-                    "avatar_path": task_data["avatar_path"],
-                    "is_narrator": task_data["character_id"] is None,
-                })
+                aligned_sentences = align_sentences_to_timestamps(
+                    original_text=task_data["text"],
+                    whisper_words=whisper_words,
+                    chunk_duration=chunk_duration,
+                )
 
-            cumulative_time += chunk_duration + SILENCE_GAP
+                for sentence in aligned_sentences:
+                    all_segments.append({
+                        "start": cumulative_time + sentence["start"],
+                        "end": cumulative_time + sentence["end"],
+                        "text": sentence["text"],
+                        "character_id": task_data["character_id"],
+                        "character_name": task_data["character_name"],
+                        "avatar_path": task_data["avatar_path"],
+                        "is_narrator": task_data["character_id"] is None,
+                    })
+
+                cumulative_time += chunk_duration + SILENCE_GAP
 
         tasks_db[task_id] = {"status": "processing", "message": "Trwa błyskawiczne scalanie plików bez zużycia RAM-u..."}
 
@@ -313,22 +313,22 @@ def process_audiobook_task(task_id: str, prepared_tasks: list):
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        tasks_db[task_id] = {"status": "processing", "message": "Generowanie plików do DaVinci (SRT + FCPXML)..."}
-
-        timeline_files = export_all(
-            segments=all_segments,
-            output_dir=TIMELINE_OUTPUT_DIR,
-            task_id=task_id,
-            nameplate_cache_dir=NAMEPLATE_CACHE_DIR,
-        )
-
         file_url = f"http://127.0.0.1:8000/output/{final_filename}"
-        tasks_db[task_id] = {
-            "status": "completed",
-            "file_url": file_url,
-            "srt_url": f"http://127.0.0.1:8000/{timeline_files['srt_path']}",
-            "fcpxml_url": f"http://127.0.0.1:8000/{timeline_files['fcpxml_path']}",
-        }
+        result_status = {"status": "completed", "file_url": file_url, "srt_url": None, "fcpxml_url": None}
+
+        if generate_timeline and all_segments:
+            tasks_db[task_id] = {"status": "processing", "message": "Generowanie plików do DaVinci (SRT + FCPXML)..."}
+            timeline_files = export_all(
+                segments=all_segments,
+                output_dir=TIMELINE_OUTPUT_DIR,
+                task_id=task_id,
+                nameplate_cache_dir=NAMEPLATE_CACHE_DIR,
+            )
+            result_status["srt_url"] = f"http://127.0.0.1:8000/{timeline_files['srt_path']}"
+            if timeline_files.get("fcpxml_path"):
+                result_status["fcpxml_url"] = f"http://127.0.0.1:8000/{timeline_files['fcpxml_path']}"
+
+        tasks_db[task_id] = result_status
 
     except subprocess.CalledProcessError as e:
         error_output = e.stderr.decode('utf-8', errors='ignore')

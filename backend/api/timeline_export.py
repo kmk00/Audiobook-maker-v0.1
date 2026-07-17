@@ -36,7 +36,7 @@ Oczekiwany kształt wejściowych segmentów (lista dictów):
 """
 
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import opentimelineio as otio
 
@@ -127,13 +127,23 @@ def export_nameplates_fcpxml(
     segments: List[Dict],
     output_path: str,
     nameplate_cache_dir: str,
-) -> str:
+) -> Optional[str]:
     """
     Generuje FCPXML z jedną ścieżką wideo: karty postaci (avatar+nazwa) w
     momentach, gdy dana postać mówi. Bloki narratora = przerwa (Gap), karta
     znika z ekranu (zgodnie z ustaleniami).
+
+    Zwraca None (zamiast pustego pliku) jeśli w segmentach nie ma ani jednej
+    kwestii z przypisaną postacią — np. w trybie czysto-lektorskim, gdzie
+    karta postaci nie miałaby czego pokazywać przez cały odcinek.
     """
     blocks = _merge_into_character_blocks(segments)
+
+    has_any_character = any(
+        not b["is_narrator"] and b["character_id"] is not None for b in blocks
+    )
+    if not has_any_character:
+        return None
 
     timeline = otio.schema.Timeline(name="Nameplates")
     video_track = otio.schema.Track(name="Nameplates", kind=otio.schema.TrackKind.Video)
@@ -181,8 +191,11 @@ def export_all(
     output_dir: str,
     task_id: str,
     nameplate_cache_dir: str,
-) -> Dict[str, str]:
-    """Wygodny wrapper: generuje oba pliki naraz."""
+) -> Dict[str, Optional[str]]:
+    """
+    Wygodny wrapper: generuje SRT zawsze, FCPXML tylko jeśli jest sens
+    (patrz export_nameplates_fcpxml — zwraca None w trybie czysto-lektorskim).
+    """
     srt_path = export_srt(segments, os.path.join(output_dir, f"captions_{task_id}.srt"))
     fcpxml_path = export_nameplates_fcpxml(
         segments,
