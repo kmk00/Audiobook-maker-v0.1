@@ -16,3 +16,8 @@ Pillow
 opencv-python-headless
 numpy
 easyocr
+faster-whisper
+opentimelineio
+otio-fcpx-xml-adapter
+pydub
+Pillow
