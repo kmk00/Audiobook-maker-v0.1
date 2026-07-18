@@ -29,6 +29,32 @@ from pydub import AudioSegment
 WHISPER_WORKER_URL = os.environ.get("WHISPER_WORKER_URL", "http://worker-whisper:8000")
 WHISPER_REQUEST_TIMEOUT = 120  # sekund - chunk audio jest krótki, ale VAD+model potrzebuje chwili
 
+# Kanoniczny format, do którego sprowadzamy KAŻDY plik audio (chunki TTS + cisza)
+# przed pomiarem czasu i przed konkatenacją. Bez tego ffmpeg "-c copy" skleja
+# pliki o różnych sample rate'ach (np. omnivoice vs qwen vs higgs) bez
+# resamplingu, co powoduje drift/desync narastający w głąb pliku.
+CANONICAL_SAMPLE_RATE = 44100
+CANONICAL_CHANNELS = 1  # mono - standard dla audiobooków głosowych
+
+
+def normalize_audio_format(audio_path: str) -> None:
+    """
+    Wymusza spójny sample rate i liczbę kanałów na pliku audio, nadpisując go
+    w miejscu. Jeśli plik już ma poprawny format, nic nie robi (tanie sprawdzenie).
+
+    MUSI być wołane na KAŻDYM chunku (i na pliku ciszy) PRZED:
+    - pomiarem długości (get_audio_duration_seconds),
+    - transkrypcją Whisperem,
+    - dopisaniem do listy do konkatenacji ffmpeg.
+
+    Inaczej zmierzone/transkrybowane czasy nie będą zgodne z tym, co faktycznie
+    wyląduje w sklejonym pliku wynikowym.
+    """
+    audio = AudioSegment.from_file(audio_path)
+    if audio.frame_rate != CANONICAL_SAMPLE_RATE or audio.channels != CANONICAL_CHANNELS:
+        audio = audio.set_frame_rate(CANONICAL_SAMPLE_RATE).set_channels(CANONICAL_CHANNELS)
+        audio.export(audio_path, format="wav")
+
 
 def get_audio_duration_seconds(audio_path: str) -> float:
     """Dokładna długość pliku audio (do liczenia offsetów kumulacyjnych)."""
@@ -92,8 +118,6 @@ def align_sentences_to_timestamps(
         return []
 
     if not whisper_words:
-        # Fallback: równy podział czasu trwania chunku między zdania,
-        # proporcjonalnie do długości znakowej (lepsze niż nic).
         total_chars = sum(len(s) for s in sentences) or 1
         dur = chunk_duration or 1.0
         results = []
@@ -137,16 +161,14 @@ def align_sentences_to_timestamps(
     for s_idx, sentence in enumerate(sentences):
         if s_idx in sentence_times:
             start, end = sentence_times[s_idx]
-            start = max(start, last_end)   # nie pozwalamy cofnąć się w czasie
+            start = max(start, last_end)   
             end = max(end, start + 0.1)
         else:
-            # Rzadki przypadek: żadne słowo tego zdania nie zostało dopasowane.
             start = last_end
             end = min(last_end + 0.5, fallback_end)
         results.append({"text": sentence, "start": start, "end": end})
         last_end = end
 
-    # Domknięcie ostatniego zdania do faktycznej długości chunku, jeśli mamy ją podaną
     if chunk_duration and results:
         results[-1]["end"] = max(results[-1]["end"], chunk_duration)
 

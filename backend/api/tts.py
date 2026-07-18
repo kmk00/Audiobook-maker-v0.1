@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 import traceback
 from .alignment import (
     get_audio_duration_seconds,
+    normalize_audio_format,
     transcribe_chunk_words,
     align_sentences_to_timestamps,
 )
@@ -231,6 +232,17 @@ def check_task_status(task_id: str):
 
 def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline: bool = True):
     try:
+        # --- 1. PRZYGOTOWANIE CISZY I POMIAR JEJ DOKŁADNEGO CZASU ---
+        silence_path = os.path.abspath(os.path.join(TEMP_AUDIO_DIR, "silence_600ms.wav")).replace("\\", "/")
+        if not os.path.exists(silence_path):
+            AudioSegment.silent(duration=600).export(silence_path, format="wav")
+        
+        normalize_audio_format(silence_path)
+        
+        # Zamiast zgadywać (0.6), mierzymy dokładny czas pliku, który FFmpeg fizycznie połączy
+        EXACT_SILENCE_DURATION = get_audio_duration_seconds(silence_path)
+        print(f"[audiobook] Dokładny zmierzony czas ciszy: {EXACT_SILENCE_DURATION:.4f}s")
+
         tasks_db[task_id] = {"status": "processing", "message": f"Generowanie paczek audio (0/{len(prepared_tasks)})..."}
         generated_audio_files = []
         task_lookup = {t["global_index"]: t for t in prepared_tasks}
@@ -251,16 +263,19 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
             phys_path = result.audio_path
             if phys_path.startswith("/audio/temp/"):
                 phys_path = os.path.join(TEMP_AUDIO_DIR, phys_path.split("/")[-1])
+                
+            normalize_audio_format(phys_path)
             generated_audio_files.append((task_data["global_index"], phys_path))
 
         generated_audio_files.sort(key=lambda x: x[0])
 
         all_segments = []
 
+        # --- 2. GENEROWANIE TIMELINU (Z UŻYCIEM DOKŁADNEGO CZASU) ---
         if generate_timeline:
             tasks_db[task_id] = {"status": "processing", "message": "Analiza timingu (Whisper)..."}
             cumulative_time = 0.0
-            SILENCE_GAP = 0.6
+            # USUNIĘTO: SILENCE_GAP = 0.6
 
             for idx, (global_index, phys_path) in enumerate(generated_audio_files):
                 task_data = task_lookup[global_index]
@@ -290,15 +305,13 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
                     })
 
                 if idx < len(generated_audio_files) - 1:
-                    cumulative_time += chunk_duration + SILENCE_GAP
+                    # ZAMIAST: cumulative_time += chunk_duration + SILENCE_GAP
+                    cumulative_time += chunk_duration + EXACT_SILENCE_DURATION
                 else:
                     cumulative_time += chunk_duration
 
+        # --- 3. SKALANIE AUDIO PRZEZ FFMPEG ---
         tasks_db[task_id] = {"status": "processing", "message": "Trwa błyskawiczne scalanie plików bez zużycia RAM-u..."}
-
-        silence_path = os.path.abspath(os.path.join(TEMP_AUDIO_DIR, "silence_600ms.wav")).replace("\\", "/")
-        if not os.path.exists(silence_path):
-            AudioSegment.silent(duration=600).export(silence_path, format="wav")
 
         concat_file_path = os.path.join(TEMP_AUDIO_DIR, f"concat_{task_id}.txt")
         with open(concat_file_path, "w", encoding="utf-8") as f:
