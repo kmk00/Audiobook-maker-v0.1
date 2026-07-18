@@ -178,12 +178,27 @@ def export_nameplates_fcpxml(
     timeline = otio.schema.Timeline(name="Nameplates")
     video_track = otio.schema.Track(name="Nameplates", kind=otio.schema.TrackKind.Video)
 
+    # Kursor śledzący, gdzie realnie jesteśmy na taśmie. Kluczowe: przerwa
+    # między KAŻDYMI dwoma kolejnymi blokami (nie tylko tam, gdzie blok sam
+    # w sobie jest narratorem) musi być jawnie wypełniona Gapem, bo inaczej
+    # OTIO układa klipy jeden za drugim bez uwzględnienia realnej ciszy
+    # między chunkami audio (Twoje 600ms między wygenerowanymi paczkami TTS).
+    cursor = 0.0
+    GAP_EPSILON = 0.02  # tolerancja na błędy zaokrągleń, żeby nie tworzyć mikro-gapów
+
     for block in blocks:
-        duration_sec = max(block["end"] - block["start"], 0.05)
+        block_start = max(block["start"], cursor)  # zabezpieczenie przed nakładaniem się
+
+        if block_start > cursor + GAP_EPSILON:
+            video_track.append(otio.schema.Gap(duration=_sec_to_rt(block_start - cursor)))
+
+        cursor = block_start
+        duration_sec = max(block["end"] - cursor, 0.05)
         dur = _sec_to_rt(duration_sec)
 
         if block["is_narrator"] or block["character_id"] is None:
             video_track.append(otio.schema.Gap(duration=dur))
+            cursor += duration_sec
             continue
 
         nameplate_path = get_or_create_nameplate(
@@ -208,6 +223,7 @@ def export_nameplates_fcpxml(
             ),
         )
         video_track.append(clip)
+        cursor += duration_sec
 
     timeline.tracks.append(video_track)
 
