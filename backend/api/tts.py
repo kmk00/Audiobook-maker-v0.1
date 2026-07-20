@@ -210,7 +210,7 @@ def start_audiobook_generation(
             "character_id": char_id,
             "character_name": character.name if char_id is not None else None,
             "avatar_path": (
-                os.path.abspath(character.avatar_path.replace("characters/", "static_characters/"))
+                os.path.abspath(character.avatar_path)
                 if char_id is not None and character.avatar_path else None
             ),
         })
