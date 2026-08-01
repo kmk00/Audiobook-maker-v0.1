@@ -15,6 +15,7 @@ Wymagane: Pillow (już masz).
 """
 
 import os
+import re
 from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 
@@ -22,7 +23,7 @@ CANVAS_W, CANVAS_H = 1920, 1080     # musi być zgodne z rozdzielczością timel
 
 AVATAR_SIZE = 450       # rozmiar kwadratu avatara w pikselach
 MARGIN_LEFT = 140       # odstęp avatara od lewej krawędzi kadru
-NAME_GAP = 30           # odstęp między avatarem a nazwą pod spodem
+NAME_GAP = 45           # odstęp między avatarem a nazwą pod spodem (odrobinę niżej niż wcześniej)
 NAME_FONT_SIZE = 44
 
 TEXT_COLOR = (255, 255, 255, 255)
@@ -47,13 +48,19 @@ def _crop_to_square_top(image: Image.Image, size: int) -> Image.Image:
 
 def _load_font(size: int):
     candidates = [
+        # Dorzuć tu plik czcionki Sitka Heading (patrz komentarz niżej)
+        "/app/api/fonts/SitkaHeadingBold.ttf",
+        "/app/api/fonts/sitka.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "arial.ttf",
     ]
     for path in candidates:
         if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue  # np. .ttc bez odpowiedniego face index - próbuj dalej
     return ImageFont.load_default()
 
 
@@ -109,9 +116,6 @@ def generate_nameplate(
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.save(output_path, "PNG")
     return output_path
-
-
-import re
 
 
 def _slugify(name: str) -> str:
