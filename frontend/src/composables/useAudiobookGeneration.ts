@@ -76,6 +76,13 @@ export function useAudiobookGeneration() {
       return;
     }
 
+    const droppedCount = blocks.length - validBlocks.length;
+    if (droppedCount > 0) {
+      toaster.warning(
+        `${droppedCount} pustych kwestii zostanie pominiętych — uzupełnij je, aby dialogi nie zniknęły z audiobooka.`,
+      );
+    }
+
     const unassignedCount = validBlocks.filter((b) => !b.characterId).length;
     if (unassignedCount > 0 && unassignedCount < validBlocks.length) {
       // Ostrzeżenie tylko gdy to MIESZANKA (część przypisana, część nie) —
@@ -119,7 +126,7 @@ export function useAudiobookGeneration() {
       await pollTaskStatus(data.task_id);
     } catch (error) {
       isLoading.value = false;
-      toaster.error(error.message || "Wystąpił błąd.");
+      toaster.error(error instanceof Error ? error.message : "Wystąpił błąd.");
     }
   };
 
