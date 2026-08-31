@@ -10,3 +10,4 @@ requrement_xtts_worker.txt
 *.db
 audiobooks/output/
 characters/
+audiobooks/

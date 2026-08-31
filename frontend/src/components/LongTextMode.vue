@@ -3,6 +3,7 @@ import { ref, nextTick, watch, onMounted } from "vue";
 import { createToaster } from "@meforma/vue-toaster";
 import LoadingOverlay from "../components/LoadingOverlay.vue";
 import { useAudiobookStore } from "../stores/audiobookStore";
+import GenerateBottomBar from "./GenerateBottomBar.vue";
 
 const toaster = createToaster({ position: "top-right", duration: 3000 });
 const audiobookStore = useAudiobookStore();
@@ -11,10 +12,10 @@ const props = defineProps({
   activeCharacter: Object,
 });
 
+const phraseToRemove = ref("");
+
 const isLoading = ref(false);
 const loadingText = ref("");
-const phraseToRemove = ref("");
-const generatedAudioUrl = ref(null);
 
 const textSelection = ref({
   blockIndex: -1,
@@ -44,27 +45,27 @@ onMounted(() => {
   adjustAllTextareas();
 });
 
-const pollTaskStatus = async (taskId) => {
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/tts/task-status/${taskId}`);
-    const data = await res.json();
+// const pollTaskStatus = async (taskId) => {
+//   try {
+//     const res = await fetch(`http://127.0.0.1:8000/tts/task-status/${taskId}`);
+//     const data = await res.json();
 
-    if (data.status === "completed") {
-      isLoading.value = false;
-      generatedAudioUrl.value = data.file_url;
-      toaster.success("Książka wygenerowana pomyślnie!");
-    } else if (data.status === "error") {
-      isLoading.value = false;
-      toaster.error("Błąd podczas generowania: " + data.error);
-    } else {
-      loadingText.value = data.message || "Trwa przetwarzanie na serwerze...";
-      setTimeout(() => pollTaskStatus(taskId), 3000);
-    }
-  } catch (error) {
-    isLoading.value = false;
-    toaster.error("Błąd komunikacji z serwerem sprawdzającym status.");
-  }
-};
+//     if (data.status === "completed") {
+//       isLoading.value = false;
+//       generatedAudioUrl.value = data.file_url;
+//       toaster.success("Książka wygenerowana pomyślnie!");
+//     } else if (data.status === "error") {
+//       isLoading.value = false;
+//       toaster.error("Błąd podczas generowania: " + data.error);
+//     } else {
+//       loadingText.value = data.message || "Trwa przetwarzanie na serwerze...";
+//       setTimeout(() => pollTaskStatus(taskId), 3000);
+//     }
+//   } catch (error) {
+//     isLoading.value = false;
+//     toaster.error("Błąd komunikacji z serwerem sprawdzającym status.");
+//   }
+// };
 
 const cleanupAndMergeBlocks = () => {
   const blocks = audiobookStore.longTextBlocks;
@@ -243,51 +244,51 @@ const uploadAndExtractText = async (event) => {
   }
 };
 
-const generateAudiobook = async () => {
-  const validBlocks = audiobookStore.longTextBlocks.filter(
-    (b) => b.text.trim() !== "",
-  );
+// const generateAudiobook = async () => {
+//   const validBlocks = audiobookStore.longTextBlocks.filter(
+//     (b) => b.text.trim() !== "",
+//   );
 
-  if (validBlocks.length === 0) {
-    toaster.warning("Brak tekstu do wygenerowania!");
-    return;
-  }
+//   if (validBlocks.length === 0) {
+//     toaster.warning("Brak tekstu do wygenerowania!");
+//     return;
+//   }
 
-  const payload = {
-    mode: "longtext",
-    blocks: validBlocks.map((block) => ({
-      character_id: block.characterId,
-      text: block.text.trim(),
-    })),
-  };
+//   const payload = {
+//     mode: "longtext",
+//     blocks: validBlocks.map((block) => ({
+//       character_id: block.characterId,
+//       text: block.text.trim(),
+//     })),
+//   };
 
-  isLoading.value = true;
-  loadingText.value = "Zlecanie zadania na serwer... Czekaj!";
-  generatedAudioUrl.value = null;
+//   isLoading.value = true;
+//   loadingText.value = "Zlecanie zadania na serwer... Czekaj!";
+//   generatedAudioUrl.value = null;
 
-  try {
-    const response = await fetch(
-      "http://127.0.0.1:8000/tts/generate-audiobook",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
+//   try {
+//     const response = await fetch(
+//       "http://127.0.0.1:8000/tts/generate-audiobook",
+//       {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       },
+//     );
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.detail || "Błąd podczas zlecania audiobooka.");
-    }
+//     if (!response.ok) {
+//       const err = await response.json();
+//       throw new Error(err.detail || "Błąd podczas zlecania audiobooka.");
+//     }
 
-    const data = await response.json();
+//     const data = await response.json();
 
-    pollTaskStatus(data.task_id);
-  } catch (error) {
-    isLoading.value = false;
-    toaster.error(error.message || "Wystąpił błąd.");
-  }
-};
+//     pollTaskStatus(data.task_id);
+//   } catch (error) {
+//     isLoading.value = false;
+//     toaster.error(error.message || "Wystąpił błąd.");
+//   }
+// };
 
 const getAvatarUrl = (path) => {
   if (!path) return "/emilia.png";
@@ -415,25 +416,10 @@ const getAvatarUrl = (path) => {
       </div>
     </div>
 
-    <div class="generate-bottom-bar">
-      <h2>WYGENERUJ AUDIOBOOK (LONG TEXT)</h2>
-
-      <audio
-        v-if="generatedAudioUrl"
-        :src="generatedAudioUrl"
-        controls
-        class="result-player"
-      ></audio>
-
-      <button
-        class="generate-action-btn diamond-btn large"
-        @click="generateAudiobook"
-      >
-        <span
-          ><img class="generate-btn" src="../assets/generate.svg" alt=""
-        /></span>
-      </button>
-    </div>
+    <GenerateBottomBar
+      :blocks="audiobookStore.longTextBlocks"
+      mode="longtext"
+    />
   </div>
 </template>
 

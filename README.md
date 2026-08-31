@@ -1,104 +1,88 @@
 # Audiobook Maker
 
-Aplikacja desktopowa, umożliwiająca tworzenie profesjonalnych audiobooków z podziałem na role przy użyciu najnowocześniejszych modeli Text-to-Speech. Projekt kładzie nacisk na prywatność, wydajność lokalnego układu GPU oraz automatyzację procesu produkcji długich treści audio.
+Audiobook Maker to lokalny system do tworzenia wielogłosowych audiobooków i dubbingu mangi. Łączy interfejs Vue z API FastAPI, biblioteką postaci i usługami GPU uruchamianymi w kontenerach. Tekst może być syntezowany głosem narratora lub przypisanych postaci, a wynik może zostać uzupełniony o napisy SRT oraz timeline FCPXML dla DaVinci Resolve.
 
-# O projekcie
-Projekt powstał z potrzeby stworzenia narzędzia, które potrafi przekształcić całe książki (PDF, EPUB, TXT) w słuchowiska bez konieczności korzystania z płatnych i ograniczonych usług chmurowych. Aplikacja zarządza wieloma mikroserwisami AI, z których każdy operuje na innym modelu (XTTS, Qwen3, OmniVoice), oferując bezprecedensową jakość i spójność głosu.
+## Najważniejsze możliwości
 
-<img width="1897" height="1013" alt="rezeroaudiobook" src="https://github.com/user-attachments/assets/bef0bbef-c714-4c26-abca-69f4fd3c924f" />
+- Tworzenie i katalogowanie postaci wraz z avatarem, tagami, kategorią oraz ustawieniami głosu.
+- Synteza z użyciem Qwen3 TTS, OmniVoice oraz Higgs TTS 3; obsługiwane są projektowanie głosu i/lub klonowanie zależnie od modelu.
+- Pięć sposobów przygotowania materiału: Builder, Long Text, Re:Zero Mode, Dubbing mangi i Multi-files.
+- Import tekstu z plików TXT, PDF i EPUB.
+- Dzielenie długich wypowiedzi na fragmenty, grupowanie generacji według postaci oraz końcowe odtworzenie pierwotnej kolejności.
+- Opcjonalne napisy SRT i timeline FCPXML z kartami postaci.
+- OCR dymków mangi (angielski/japoński), ręczna korekta obszarów i przypisywanie głosów.
 
+## Szybki start
 
-# Główne funkcje
+Wymagania:
 
-- Automatyczne parsowanie plików i generowanie wielogłosowych nagrań z zachowaniem podziału na Narratora i postacie.
-- Tryb Builder Mode pozwala na precyzyjne układanie kwestii dialogowych blok po bloku.
-- Tworzenie głosów dla postaci na podstawie opisów tekstowych, umożliwiając pełną personalizację.
+- Docker Desktop z włączoną obsługą Linux containers;
+- zgodny sterownik NVIDIA oraz NVIDIA Container Toolkit / obsługa GPU w Dockerze;
+- karta NVIDIA z wystarczającą pamięcią VRAM (projekt był testowany na RTX 5070 Ti 16 GB), 32 GB RAM i dużo wolnego miejsca na modele;
+- połączenie z Internetem przy pierwszym uruchomieniu, aby pobrać obrazy i wagi modeli.
 
-# Technologie
+Uruchom z katalogu głównego projektu:
 
-### Modele AI
-<!-- TABLE -->
-| Technologia | Opis |
-|-------------|------|
-| XTTSv2      | Model Text-to-Speech do generowania naturalnego głosu |
-| Qwen3     | Model Text-to-Speech do generowania naturalnego głosu |
-| OmniVoice   | Model Text-to-Speech do generowania naturalnego głosu |
-<!-- END TABLE -->
+```bash
+docker compose up --build
+```
 
-### Frontend
-<!-- TABLE -->
-| Narzędzie   | Opis |
-|-------------|------|
-| Vue.js      | Framework do tworzenia aplikacji frontendowych |
-| Vite       | Narzędzie do budowy aplikacji frontendowych |
-| Typescript | Język programowania dla aplikacji frontendowych |
-| Pinia      | Biblioteka do zarządzania stanem aplikacji |
-<!-- END TABLE -->
+Po uruchomieniu:
 
-### Backend
-<!-- TABLE -->
-| Narzędzie   | Opis |
-|-------------|------|
-| Python     | Język programowania dla aplikacji backendowych |
-| FastAPI    | Framework do tworzenia aplikacji backendowych |
-| SQLAlchemy | Biblioteka do zarządzania bazą danych (ORM) |
-| SQLite     | Lokalna baza danych |
-<!-- END TABLE -->
+- aplikacja: `http://localhost:3000`
+- dokumentacja interaktywna API: `http://localhost:8000/docs`
+- API: `http://localhost:8000`
 
-### Audio Processing
-<!-- TABLE -->
-| Narzędzie   | Opis |
-|-------------|------|
-| FFmpeg     | Narzędzie do przetwarzania audio |
-| Pydub      | Biblioteka do przetwarzania audio|
-<!-- END TABLE -->
+Pierwsze uruchomienie usług AI może trwać długo, ponieważ modele są pobierane i ładowane do pamięci GPU. Zatrzymanie wszystkich usług: `docker compose down`.
 
-### Pozostałe
+> Usługi Qwen i OmniVoice współdzielą jedną kartę GPU. Generowanie jest wykonywane sekwencyjnie; nie uruchamiaj równoległych zadań, jeśli VRAM jest ograniczony.
 
-<!-- TABLE -->
-| Narzędzie   | Opis |
-|-------------|------|
-| Miniconda     | Środowisko do zarządzania pakietami i wirtualnymi środowiskami Python |
+## Praca z aplikacją
 
-### Wersje Python
+1. Otwórz **Postacie**, wybierz model, ustaw parametry głosu i wygeneruj odsłuch próbny.
+2. Zapisz postać. Pliki referencyjne i avatar zostaną zapisane lokalnie w `backend/characters/`.
+3. W widoku **Generowanie** wybierz postać z panelu po lewej i przygotuj scenariusz w wybranym trybie.
+4. Włącz opcję generowania timeline'u, jeśli potrzebujesz plików do montażu.
+5. Rozpocznij generowanie. Interfejs odpyta API o stan zadania co 3 sekundy, a po zakończeniu pokaże odtwarzacz i linki do plików.
 
-<!-- TABLE -->
-| Narzędzie   | Opis |
-|-------------|------|
-| Python 3.12.13     | Wersja języka Python dla modelu Omnivoice |
-| Python 3.12.13     | Wersja języka Python dla API backendu |
-| Python 3.10.201     | Wersja języka Python dla modelu XTTS |
-| Python 3.12.13     | Wersja języka Python dla modelu Qwen3 |
-<!-- END TABLE -->
+Szczegółowy opis interfejsu, modeli i przebiegów znajduje się w [dokumentacji użytkownika](docs/USER_GUIDE.md). Architektura, konfiguracja i API są opisane w [dokumentacji technicznej](docs/TECHNICAL_DOCUMENTATION.md).
 
-# Specyfikacja Sprzętowa (Środowisko Testowe)
+## Struktura repozytorium
 
-Projekt został zoptymalizowany pod kątem pracy na mocnych stacjach roboczych:
+```text
+frontend/                 aplikacja Vue 3 / Vite
+backend/
+  api/                    endpointy, OCR, synchronizacja i eksport timeline'u
+  db/                     modele SQLAlchemy i SQLite
+  providers/              adaptery API -> workery TTS
+  workers/                kontenery Qwen, OmniVoice, Whisper i Higgs
+  src/                    kontrakty TTS i manager providerów
+docker-compose.yml        uruchomienie kompletnego stosu
+docs/                     dokumentacja użytkownika i techniczna
+```
 
-GPU: GPU: NVIDIA GeForce RTX 5070 Ti (16 GB VRAM)
+## Dane lokalne
 
-RAM: 32 GB
+W trakcie działania backend tworzy bazę `backend/audiobookDatabase.db` oraz katalogi w `backend/`:
 
-CPU: AMD Ryzen 7 7800X3D
+- `characters/` — próbki głosowe, avatary i odsłuchy postaci;
+- `audiobooks/audio/temp/` — robocze fragmenty audio, czyszczone przy starcie i zakończeniu API;
+- `audiobooks/output/` — wygenerowane audiobooki WAV;
+- `audiobooks/timelines/` — pliki SRT i FCPXML;
+- `audiobooks/nameplates/` — cache plansz z avatarem i nazwą.
 
-OS: Windows 10 
+To dane użytkownika — nie powinny być dodawane do kontroli wersji ani usuwane bez kopii zapasowej.
 
+## Stan projektu i ograniczenia
 
-# Rozwiązania i optymalizacje
+Projekt jest przeznaczony do pracy lokalnej. Nie ma logowania, kontroli dostępu, trwałej kolejki zadań ani mechanizmu odzyskiwania zadań po restarcie API. Statusy generacji są przechowywane w pamięci procesu. Domyślny adres API jest wpisany w frontendzie jako `127.0.0.1:8000`, dlatego przy wdrożeniu zdalnym wymaga konfiguracji.
 
-Zamiast przełączać modele przy każdej zmianie roli, system grupuje zadania według postaci. Najpierw generowane są wszystkie kwestie Narratora (jeden model w VRAM), potem Postaci A, itd. Na koniec system przywraca oryginalną chronologię. To podejście minimalizuje przeładowania GPU, znacznie przyspieszając proces produkcji audiobooka.
+Nie ma też zautomatyzowanego zestawu testów w repozytorium. Przed zmianami w produkcji warto zweryfikować ręcznie generację dla każdego używanego modelu oraz import timeline'u w docelowej wersji DaVinci Resolve.
 
-Długie teksty są dzielone na optymalne fragmenty (chunks), co zapobiega halucynacjom modeli i utracie spójności barwy głosu przy długich nagraniach.
+## Technologie
 
-Dzięki systemowi Background Tasks i odpytywaniu o status (Polling), użytkownik może generować setki stron tekstu bez obawy o timeout przeglądarki.
-
-# Przykłady Wygenerowanych Treści
-
-| Narzędzie   | Opis |
-|-------------|------|
-| Classroom of the elite chapter 1     | [omnivoice clone.wav](https://github.com/user-attachments/files/27531856/omnivoice.clone.wav) |
-| Re zero- Web novel -Arc 10, Phase 1      | https://www.youtube.com/watch?v=3JF9fvXN3Vo|
-
-
-
-
+- **Frontend:** Vue 3, TypeScript, Vite, Vue Router, Pinia.
+- **API:** Python 3.12, FastAPI, Pydantic, SQLAlchemy, SQLite.
+- **Audio i montaż:** FFmpeg, Pydub, Faster-Whisper, OpenTimelineIO, FCPXML.
+- **OCR:** EasyOCR oraz Manga OCR.
+- **TTS:** Qwen3 TTS, OmniVoice i Higgs Audio TTS 3.

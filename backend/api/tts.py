@@ -2,6 +2,13 @@ import re
 import subprocess
 from typing import Any, List, Optional
 import traceback
+from .alignment import (
+    get_audio_duration_seconds,
+    normalize_audio_format,
+    transcribe_chunk_words,
+    align_sentences_to_timestamps,
+)
+from .timeline_export import export_all
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -27,7 +34,10 @@ class AudiobookBlock(BaseModel):
 
 class AudiobookPayload(BaseModel):
     mode: str
+    generate_timeline: bool = True
     blocks: List[AudiobookBlock]
+    
+    
     
     
 OUTPUT_AUDIO_DIR = "audiobooks/output"
@@ -36,6 +46,11 @@ os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 TEMP_AUDIO_DIR = "audiobooks/audio/temp"
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
+TIMELINE_OUTPUT_DIR = "audiobooks/timelines"
+os.makedirs(TIMELINE_OUTPUT_DIR, exist_ok=True)
+
+NAMEPLATE_CACHE_DIR = "audiobooks/nameplates"
+os.makedirs(NAMEPLATE_CACHE_DIR, exist_ok=True)
 tasks_db = {}
 
 def clear_temp_directory():
@@ -191,12 +206,18 @@ def start_audiobook_generation(
             "voice_path": voice_path,
             "voice_prompt": voice_prompt,
             "options": options_dict,
-            "text": task["text"]
+            "text": task["text"],
+            "character_id": char_id,
+            "character_name": character.name if char_id is not None else None,
+            "avatar_path": (
+                os.path.abspath(character.avatar_path)
+                if char_id is not None and character.avatar_path else None
+            ),
         })
 
 
     tasks_db[task_id] = {"status": "pending", "message": "Rozpoczynamy przygotowania..."}
-    background_tasks.add_task(process_audiobook_task, task_id, prepared_tasks)
+    background_tasks.add_task(process_audiobook_task, task_id, prepared_tasks, payload.generate_timeline)
 
     return {"task_id": task_id}
 
@@ -209,11 +230,22 @@ def check_task_status(task_id: str):
     return tasks_db[task_id]
     
 
-def process_audiobook_task(task_id: str, prepared_tasks: list):
+def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline: bool = True):
     try:
+        # --- 1. PRZYGOTOWANIE CISZY I POMIAR JEJ DOKŁADNEGO CZASU ---
+        silence_path = os.path.abspath(os.path.join(TEMP_AUDIO_DIR, "silence_600ms.wav")).replace("\\", "/")
+        if not os.path.exists(silence_path):
+            AudioSegment.silent(duration=600).export(silence_path, format="wav")
+        
+        normalize_audio_format(silence_path)
+        
+        # Zamiast zgadywać (0.6), mierzymy dokładny czas pliku, który FFmpeg fizycznie połączy
+        EXACT_SILENCE_DURATION = get_audio_duration_seconds(silence_path)
+        print(f"[audiobook] Dokładny zmierzony czas ciszy: {EXACT_SILENCE_DURATION:.4f}s")
+
         tasks_db[task_id] = {"status": "processing", "message": f"Generowanie paczek audio (0/{len(prepared_tasks)})..."}
         generated_audio_files = []
-
+        task_lookup = {t["global_index"]: t for t in prepared_tasks}
 
         for i, task_data in enumerate(prepared_tasks):
             req = TTSRequest(
@@ -223,30 +255,63 @@ def process_audiobook_task(task_id: str, prepared_tasks: list):
                 voice_prompt=task_data["voice_prompt"],
                 options=task_data["options"]
             )
-            
-
             tasks_db[task_id] = {
-                "status": "processing", 
+                "status": "processing",
                 "message": f"Wygenerowano {i + 1}/{len(prepared_tasks)} fragmentów..."
             }
-
             result = tts_manager.generate_audio(req, provider_override=task_data["provider"])
-            
-            phys_path = result.audio_path 
+            phys_path = result.audio_path
             if phys_path.startswith("/audio/temp/"):
                 phys_path = os.path.join(TEMP_AUDIO_DIR, phys_path.split("/")[-1])
-            
+                
+            normalize_audio_format(phys_path)
             generated_audio_files.append((task_data["global_index"], phys_path))
 
-
         generated_audio_files.sort(key=lambda x: x[0])
+
+        all_segments = []
+
+        # --- 2. GENEROWANIE TIMELINU (Z UŻYCIEM DOKŁADNEGO CZASU) ---
+        if generate_timeline:
+            tasks_db[task_id] = {"status": "processing", "message": "Analiza timingu (Whisper)..."}
+            cumulative_time = 0.0
+            # USUNIĘTO: SILENCE_GAP = 0.6
+
+            for idx, (global_index, phys_path) in enumerate(generated_audio_files):
+                task_data = task_lookup[global_index]
+                chunk_duration = get_audio_duration_seconds(phys_path)
+
+                try:
+                    whisper_words = transcribe_chunk_words(phys_path, language="en")
+                except Exception as whisper_err:
+                    print(f"[audiobook] Whisper nie powiódł się dla {phys_path}: {whisper_err}")
+                    whisper_words = []
+
+                aligned_sentences = align_sentences_to_timestamps(
+                    original_text=task_data["text"],
+                    whisper_words=whisper_words,
+                    chunk_duration=chunk_duration,
+                )
+
+                for sentence in aligned_sentences:
+                    all_segments.append({
+                        "start": cumulative_time + sentence["start"],
+                        "end": cumulative_time + sentence["end"],
+                        "text": sentence["text"],
+                        "character_id": task_data["character_id"],
+                        "character_name": task_data["character_name"],
+                        "avatar_path": task_data["avatar_path"],
+                        "is_narrator": task_data["character_id"] is None,
+                    })
+
+                if idx < len(generated_audio_files) - 1:
+                    # ZAMIAST: cumulative_time += chunk_duration + SILENCE_GAP
+                    cumulative_time += chunk_duration + EXACT_SILENCE_DURATION
+                else:
+                    cumulative_time += chunk_duration
+
+        # --- 3. SKALANIE AUDIO PRZEZ FFMPEG ---
         tasks_db[task_id] = {"status": "processing", "message": "Trwa błyskawiczne scalanie plików bez zużycia RAM-u..."}
-
-
-        silence_path = os.path.abspath(os.path.join(TEMP_AUDIO_DIR, "silence_600ms.wav")).replace("\\", "/")
-        if not os.path.exists(silence_path):
-            AudioSegment.silent(duration=600).export(silence_path, format="wav")
-
 
         concat_file_path = os.path.join(TEMP_AUDIO_DIR, f"concat_{task_id}.txt")
         with open(concat_file_path, "w", encoding="utf-8") as f:
@@ -255,7 +320,6 @@ def process_audiobook_task(task_id: str, prepared_tasks: list):
                 f.write(f"file '{abs_filepath}'\n")
                 f.write(f"file '{silence_path}'\n")
 
-        
         final_filename = f"audiobook_{task_id}.wav"
         final_filepath = os.path.join(OUTPUT_AUDIO_DIR, final_filename)
 
@@ -263,13 +327,27 @@ def process_audiobook_task(task_id: str, prepared_tasks: list):
             "ffmpeg", "-y", "-f", "concat", "-safe", "0",
             "-i", concat_file_path, "-c", "copy", final_filepath
         ]
-        
-        
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-       
         file_url = f"http://127.0.0.1:8000/output/{final_filename}"
-        tasks_db[task_id] = {"status": "completed", "file_url": file_url}
+        result_status = {"status": "completed", "file_url": file_url, "srt_url": None, "fcpxml_url": None}
+
+        if generate_timeline and all_segments:
+            tasks_db[task_id] = {"status": "processing", "message": "Generowanie plików do DaVinci (SRT + FCPXML)..."}
+            timeline_files = export_all(
+                segments=all_segments,
+                output_dir=TIMELINE_OUTPUT_DIR,
+                task_id=task_id,
+                nameplate_cache_dir=NAMEPLATE_CACHE_DIR,
+            )
+            srt_filename = os.path.basename(timeline_files["srt_path"])
+            result_status["srt_url"] = f"http://127.0.0.1:8000/timelines/{srt_filename}"
+
+            if timeline_files.get("fcpxml_path"):
+                fcpxml_filename = os.path.basename(timeline_files["fcpxml_path"])
+                result_status["fcpxml_url"] = f"http://127.0.0.1:8000/timelines/{fcpxml_filename}"
+
+        tasks_db[task_id] = result_status
 
     except subprocess.CalledProcessError as e:
         error_output = e.stderr.decode('utf-8', errors='ignore')
