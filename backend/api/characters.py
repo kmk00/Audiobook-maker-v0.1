@@ -91,8 +91,7 @@ def create_character(name: str = Form(...),
         with open(voice_path, "wb") as buffer:
             shutil.copyfileobj(voice_file.file, buffer)
         db_character.voice_path = voice_path # type: ignore
-    elif provider in ["coqui_xtts_v2", "qwen_base"]:
-        raise HTTPException(status_code=400, detail="Ten model wymaga próbki głosu (voice_file).")
+
 
     if avatar_file:
         # Safeguard against missing filename and ensure we don't have path traversal issues

@@ -22,24 +22,8 @@ services:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
-      - worker-qwen
       - worker-omnivoice
       - worker-whisper
-
-  # # 3. WORKER QWEN
-  worker-qwen:
-    build:
-      context: backend/workers/qwen
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    volumes:
-      - ./backend:/app
-    command: python /app/workers/qwen/qwen_worker.py
 
   # 4. WORKER OMNIVOICE
   worker-omnivoice:
@@ -77,32 +61,6 @@ services:
               capabilities: [gpu]
     command: python /app/workers/whisper/whisper_worker.py
     
-  # 5. WORKER HIGGS
-  worker-higgs:
-    image: lmsysorg/sglang-omni:dev
-    container_name: ab_higgs
-    stdin_open: true
-    tty: true
-    shm_size: "32g"
-    ipc: host
-    privileged: true
-    ports:
-      - "8004:8000"
-    volumes:
-      - sglang_workspace:/workspace
-      - sglang_hf_cache:/root/.cache/huggingface
-      - sglang_uv_cache:/root/.cache/uv
-      - ./backend:/workspace/app_backend:ro
-      - ./backend/workers/higgs/start.sh:/start.sh
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    entrypoint: ["/bin/zsh", "/start.sh"]
-
 volumes:
   sglang_workspace:
   sglang_hf_cache:
