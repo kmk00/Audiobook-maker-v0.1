@@ -23,6 +23,7 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
       - worker-omnivoice
+      - worker-breeze
       - worker-whisper
 
   # 4. WORKER OMNIVOICE
@@ -40,6 +41,24 @@ services:
       - ./backend:/app
     command: python /app/workers/omnivoice/omnivoice_worker.py
   
+  # WORKER BREEZE TTS
+  worker-breeze:
+    build:
+      context: backend/workers/breeze_tts
+    volumes:
+      - ./backend:/app
+      - breeze_models:/models
+    environment:
+      - BREEZE_MODEL_DIR=/models/breeze-tts-2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: python /app/workers/breeze_tts/breeze_worker.py
+
   worker-whisper:
     build:
       context: backend/workers/whisper
@@ -65,3 +84,4 @@ volumes:
   sglang_workspace:
   sglang_hf_cache:
   sglang_uv_cache:
+  breeze_models:

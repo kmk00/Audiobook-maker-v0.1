@@ -23,6 +23,7 @@ from db import models
 from db.database import get_db
 from src.manager import TTSManager
 from src.schemas import TTSRequest, TTSResult
+from src.direction import extract_direction
 
 router = APIRouter(
     prefix="/tts",
@@ -66,6 +67,7 @@ def clear_temp_directory():
 
 tts_manager = TTSManager(output_dir=TEMP_AUDIO_DIR)
 tts_manager.load_provider("omnivoice")
+tts_manager.load_provider("breeze_tts")
 
 def split_into_chunks(text: str, max_chars: int = 1200) -> List[str]:
     """Tnie tekst na zgrabne paczki bez ucinania zdań wpół."""
@@ -160,13 +162,19 @@ def start_audiobook_generation(
     for block_idx, block in enumerate(payload.blocks):
         text = block.text.strip()
         if not text: continue
-            
+
+        # Usuń znaczniki kierunku `<<...>>` i zapamiętaj kierunek dla całego bloku
+        text, direction, direction_cfg = extract_direction(text)
+        if not text: continue
+
         chunks = split_into_chunks(text, max_chars=1200)
         for chunk_idx, chunk_text in enumerate(chunks):
             tasks.append({
                 "global_index": (block_idx, chunk_idx),
                 "char_id": block.character_id,
-                "text": chunk_text
+                "text": chunk_text,
+                "direction": direction,
+                "direction_cfg": direction_cfg,
             })
 
 
@@ -187,13 +195,19 @@ def start_audiobook_generation(
             
             options_dict = character.provider_options or {}
             if not isinstance(options_dict, dict): options_dict = {}
+            options_dict = dict(options_dict)
             if character.language and "language" not in options_dict:
                 options_dict["language"] = character.language
         else:
-            provider = "omnivoice" 
+            provider = "omnivoice"
             voice_path = None
             voice_prompt = None
             options_dict = {}
+
+        if task.get("direction"):
+            options_dict["direction"] = task["direction"]
+        if task.get("direction_cfg"):
+            options_dict["cfg_scale"] = task["direction_cfg"]
 
         prepared_tasks.append({
             "global_index": task["global_index"],

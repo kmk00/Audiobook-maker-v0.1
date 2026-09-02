@@ -7,6 +7,7 @@ from src.schemas import TTSRequest, TTSResult
 
 
 from providers.omnivoice_network import OmniVoiceNetworkProvider
+from providers.breeze_network import BreezeTTSNetworkProvider
 
 class TTSManager:
     def __init__(self, output_dir: str = "audiobooks/audio") -> None:
@@ -18,6 +19,7 @@ class TTSManager:
         # Declare available providers without instantiating them yet
         self._available_providers: Dict[str, Callable[[Optional[dict]], BaseTTSProvider]] = {
             "omnivoice": lambda config: OmniVoiceNetworkProvider(config=config),
+            "breeze_tts": lambda config: BreezeTTSNetworkProvider(config=config),
         }
         
         self.active_provider: Optional[str] = None

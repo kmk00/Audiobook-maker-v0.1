@@ -44,6 +44,11 @@ const form = reactive({
   omniAccent: "",
   omniDialect: "",
 
+  breezeMode: "voice_design",
+  breezeInstruction: "",
+  breezeReferenceTranscript: "",
+  breezeCfgScale: 4,
+
   higgsLanguage: "English",
   higgsReferenceTranscript: "",
 });
@@ -196,6 +201,28 @@ const validateOmnivoiceForm = (mode) => {
   return true;
 };
 
+const validateBreezeForm = (mode) => {
+  if (!form.textToGenerate) {
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
+    return false;
+  }
+  if (mode === "voice_design" && !form.breezeInstruction.trim()) {
+    toaster.warning("Opis głosu (instruction) jest wymagany!");
+    return false;
+  }
+  if (mode === "voice_cloning") {
+    if (!form.voiceToClone) {
+      toaster.warning("Wybierz głos do sklonowania!");
+      return false;
+    }
+    if (!form.breezeReferenceTranscript.trim()) {
+      toaster.warning("Podaj dokładną transkrypcję głosu referencyjnego!");
+      return false;
+    }
+  }
+  return true;
+};
+
 const validateHiggsForm = () => {
   if (!form.textToGenerate) {
     toaster.warning("Podaj tekst do wygenerowania głosu!");
@@ -259,6 +286,18 @@ const generateVoice = async () => {
       }
       break;
 
+    case "breeze_tts":
+      if (!validateBreezeForm(form.breezeMode)) return;
+      payload.mode = form.breezeMode;
+      payload.cfg_scale = form.breezeCfgScale;
+      if (form.breezeMode === "voice_design") {
+        payload.voicePrompt = form.breezeInstruction;
+      } else {
+        payload.voiceToClone = form.voiceToClone?.name || null;
+        payload.ref_text = form.breezeReferenceTranscript;
+      }
+      break;
+
     case "higgs_tts_3":
       if (!validateHiggsForm()) return;
       payload.language = form.higgsLanguage;
@@ -309,6 +348,9 @@ const saveCharacter = async () => {
 
   if (form.description) formData.append("description", form.description);
   if (form.voicePrompt) formData.append("voice_prompt", form.voicePrompt);
+  if (form.provider === "breeze_tts" && form.breezeMode === "voice_design") {
+    formData.append("voice_prompt", form.breezeInstruction);
+  }
   if (form.category) formData.append("category", form.category);
   formData.append("tags", JSON.stringify(form.tags));
 
@@ -334,6 +376,12 @@ const saveCharacter = async () => {
       options.style = form.omniStyle;
       options.accent = form.omniAccent;
       options.dialect = form.omniDialect;
+    }
+  } else if (form.provider === "breeze_tts") {
+    options.mode = form.breezeMode;
+    options.cfg_scale = form.breezeCfgScale;
+    if (form.breezeMode === "voice_cloning") {
+      options.ref_text = form.breezeReferenceTranscript;
     }
   } else if (form.provider === "higgs_tts_3") {
     options.voiceToClone = form.voiceToClone?.name || null;
@@ -495,8 +543,9 @@ onBeforeRouteLeave(async (to, from, next) => {
         <select id="provider" v-model="form.provider" required>
           <option value="" disabled>Wybierz Model</option>
           <option value="omnivoice">1. OMNIVOICE</option>
+          <option value="breeze_tts">2. BREEZE TTS</option>
         </select>
-      </label>      
+      </label>
 
       <template v-if="form.provider === 'omnivoice'">
         <label for="omni-mode">
@@ -574,6 +623,62 @@ onBeforeRouteLeave(async (to, from, next) => {
             />
           </label>
         </template>
+      </template>
+
+      <template v-if="form.provider === 'breeze_tts'">
+        <label for="breeze-mode">
+          Tryb Breeze TTS
+          <select id="breeze-mode" v-model="form.breezeMode">
+            <option value="voice_design">Voice Design (Opis głosu)</option>
+            <option value="voice_cloning">Voice Cloning (Z pliku)</option>
+          </select>
+        </label>
+
+        <template v-if="form.breezeMode === 'voice_design'">
+          <label for="breeze-instruction">
+            Opis głosu (instruction)
+            <textarea
+              id="breeze-instruction"
+              v-model="form.breezeInstruction"
+              placeholder="np. A warm, thoughtful young woman with a clear voice and a calm, reflective delivery."
+            ></textarea>
+          </label>
+          <p class="field-hint">
+            Wolny opis naturalnym językiem (EN lub CN). Zalecany CFG: 4.
+          </p>
+        </template>
+
+        <template v-if="form.breezeMode === 'voice_cloning'">
+          <label for="breeze-voice-to-clone">
+            Wybierz głos do sklonowania
+            <input
+              type="file"
+              id="breeze-voice-to-clone"
+              accept="audio/*"
+              @change="handleFileUpload('voiceToClone', $event)"
+            />
+          </label>
+          <label for="breeze-ref-transcript">
+            Dokładna transkrypcja referencyjna (wymagana)
+            <textarea
+              id="breeze-ref-transcript"
+              v-model="form.breezeReferenceTranscript"
+              placeholder='np. "This is the exact transcript of the reference audio."'
+            ></textarea>
+          </label>
+        </template>
+
+        <label for="breeze-cfg">
+          CFG Scale (siła podążania za instrukcją)
+          <input
+            type="number"
+            id="breeze-cfg"
+            v-model.number="form.breezeCfgScale"
+            min="1"
+            max="10"
+            step="0.5"
+          />
+        </label>
       </template>
 
       <label v-if="form.provider" for="text-to-generate">
@@ -660,6 +765,19 @@ onBeforeRouteLeave(async (to, from, next) => {
 .character-form textarea {
   height: 200px;
   max-width: 100%;
+  resize: none;
+}
+
+.field-hint {
+  margin: -12px 0 20px;
+  font-size: 0.85rem;
+  color: var(--col-brown);
+  text-align: left;
+}
+
+#breeze-instruction,
+#breeze-ref-transcript {
+  height: 90px;
   resize: none;
 }
 
