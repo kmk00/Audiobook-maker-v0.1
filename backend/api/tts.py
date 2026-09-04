@@ -364,10 +364,13 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
 
         concat_file_path = os.path.join(TEMP_AUDIO_DIR, f"concat_{task_id}.txt")
         with open(concat_file_path, "w", encoding="utf-8") as f:
-            for _, filepath in generated_audio_files:
+            for idx, (_, filepath) in enumerate(generated_audio_files):
                 abs_filepath = os.path.abspath(filepath).replace("\\", "/")
                 f.write(f"file '{abs_filepath}'\n")
-                f.write(f"file '{silence_path}'\n")
+                # Cisza tylko MIĘDZY chunkami (nie po ostatnim) — spójnie z
+                # liczeniem cumulative_time w timeline'ie.
+                if idx < len(generated_audio_files) - 1:
+                    f.write(f"file '{silence_path}'\n")
 
         final_filename = f"audiobook_{task_id}.wav"
         final_filepath = os.path.join(OUTPUT_AUDIO_DIR, final_filename)

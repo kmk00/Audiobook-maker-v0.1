@@ -172,4 +172,12 @@ def align_sentences_to_timestamps(
     if chunk_duration and results:
         results[-1]["end"] = max(results[-1]["end"], chunk_duration)
 
+    # Zakotwiczenie chunka: VAD Whispera ucina ciszę/szelest na początku pliku,
+    # więc pierwsze zdanie dostawało start = pierwszy WYKRYTY wyraz (nawet ~1s
+    # od początku chunka) i odcinek od 0:00 zostawał bez napisu/nameplate.
+    # Pierwsze zdanie zaczyna się więc zawsze od 0.0, ostatnie kończy na
+    # chunk_duration — cały chunk jest pokryty.
+    if results:
+        results[0]["start"] = 0.0
+
     return results
