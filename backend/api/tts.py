@@ -2,6 +2,7 @@ import re
 import subprocess
 from typing import Any, List, Optional
 import traceback
+import requests
 from .alignment import (
     get_audio_duration_seconds,
     normalize_audio_format,
@@ -53,6 +54,22 @@ os.makedirs(TIMELINE_OUTPUT_DIR, exist_ok=True)
 NAMEPLATE_CACHE_DIR = "audiobooks/nameplates"
 os.makedirs(NAMEPLATE_CACHE_DIR, exist_ok=True)
 tasks_db = {}
+
+TTS_WORKER_UNLOAD_URLS = {
+    "omnivoice": "http://worker-omnivoice:8002/unload",
+    "breeze_tts": "http://worker-breeze:8003/unload",
+}
+
+def unload_tts_worker(provider: str):
+    """Zwalnia model TTS z VRAM danego workera (leniwe ładowanie odbuduje go przy następnym żądaniu)."""
+    url = TTS_WORKER_UNLOAD_URLS.get(provider)
+    if not url:
+        return
+    try:
+        requests.post(url, timeout=30)
+        print(f"[audiobook] Zwolniono VRAM workera '{provider}' ({url})")
+    except Exception as e:
+        print(f"[audiobook] Nie udało się zwolnić workera '{provider}': {e}")
 
 def clear_temp_directory():
     """Remove all files in the temporary audio directory."""
@@ -158,6 +175,17 @@ def start_audiobook_generation(
     task_id = uuid4().hex
     
 
+    # Mapa: character_id -> provider (cache, by nie dublować zapytań do DB)
+    provider_cache = {}
+
+    def resolve_provider(char_id: Optional[int]) -> str:
+        if char_id is None:
+            return "omnivoice"
+        if char_id not in provider_cache:
+            character = db.query(models.Character).filter(models.Character.id == char_id).first()
+            provider_cache[char_id] = (character.provider or "omnivoice") if character else "omnivoice"
+        return provider_cache[char_id]
+
     tasks = []
     for block_idx, block in enumerate(payload.blocks):
         text = block.text.strip()
@@ -175,10 +203,13 @@ def start_audiobook_generation(
                 "text": chunk_text,
                 "direction": direction,
                 "direction_cfg": direction_cfg,
+                "provider": resolve_provider(block.character_id),
             })
 
 
-    tasks.sort(key=lambda x: x["char_id"] if x["char_id"] is not None else -1)
+    # Grupuj zadania po modelu (providerze), zachowując oryginalną kolejność w ramach modelu.
+    # Finalna kolejność jest odtwarzana później dzięki global_index.
+    tasks.sort(key=lambda x: (x["provider"], x["global_index"]))
 
 
     prepared_tasks = []
@@ -189,7 +220,7 @@ def start_audiobook_generation(
             character: Any = db.query(models.Character).filter(models.Character.id == char_id).first()
             if not character: continue 
                 
-            provider = character.provider or "omnivoice"
+            provider = task["provider"]
             voice_path = character.voice_path
             voice_prompt = character.voice_prompt
             
@@ -256,7 +287,16 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
         generated_audio_files = []
         task_lookup = {t["global_index"]: t for t in prepared_tasks}
 
+        current_provider = None
         for i, task_data in enumerate(prepared_tasks):
+            # Przy zmianie modelu zwolnij VRAM wszystkich pozostałych workerów TTS —
+            # nowy model załaduje się leniwie przy pierwszym żądaniu /generate.
+            if task_data["provider"] != current_provider:
+                for provider_name in TTS_WORKER_UNLOAD_URLS:
+                    if provider_name != task_data["provider"]:
+                        unload_tts_worker(provider_name)
+                current_provider = task_data["provider"]
+
             req = TTSRequest(
                 text=task_data["text"],
                 provider=task_data["provider"],

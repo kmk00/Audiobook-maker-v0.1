@@ -1,4 +1,5 @@
 
+import gc
 import os
 from pathlib import Path
 import torch
@@ -37,8 +38,17 @@ def ensure_model_downloaded() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("Starting Breeze TTS worker (model will be loaded lazily on first request)...")
+
+    yield
+
+    print("Shutting down Breeze TTS worker and clearing VRAM...")
+    unload_model()
+
+def load_model():
     global tokenizer, model, audio_tokenizer, runtime
-    print("Starting Breeze TTS worker...")
+    if runtime is not None:
+        return
 
     device = resolve_device()
     print(f"Loading Breeze TTS 2 on {device} (this may take a moment)...")
@@ -61,11 +71,19 @@ async def lifespan(app: FastAPI):
     )
     print("Breeze TTS 2 model loaded successfully and ready to receive requests.")
 
-    yield
-
-    print("Shutting down Breeze TTS worker and clearing VRAM...")
-    del tokenizer, model, audio_tokenizer, runtime
-    torch.cuda.empty_cache()
+def unload_model():
+    global tokenizer, model, audio_tokenizer, runtime
+    if runtime is None:
+        return {"status": "unloaded", "was_loaded": False}
+    tokenizer = None
+    model = None
+    audio_tokenizer = None
+    runtime = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("Breeze TTS 2 model unloaded, VRAM cleared.")
+    return {"status": "unloaded", "was_loaded": True}
 
 app = FastAPI(title="Breeze TTS Worker", lifespan=lifespan)
 
@@ -79,10 +97,13 @@ class BreezeRequest(BaseModel):
     cfg_scale: float = 4.0
     seed: int = 42
 
+@app.post("/unload")
+def unload_worker():
+    return unload_model()
+
 @app.post("/generate")
 def generate_audio(req: BreezeRequest):
-    if runtime is None:
-        raise HTTPException(status_code=503, detail="Model is loading.")
+    load_model()
 
     has_ref = req.ref_audio is not None and os.path.exists(req.ref_audio)
     if req.ref_audio is not None and not has_ref:
