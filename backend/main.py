@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from db.database import Base, engine
 
 from db import models
-from api import characters, tts, audiobook_utils
+from api import characters, tts, audiobook_utils, davinci
 from utils.lifespan_utils import clear_temp_directory
 Base.metadata.create_all(bind=engine)
 
@@ -47,6 +47,7 @@ app.mount("/timelines", StaticFiles(directory="audiobooks/timelines"), name="tim
 app.include_router(characters.router)
 app.include_router(tts.router)
 app.include_router(audiobook_utils.router)
+app.include_router(davinci.router)
 
 @app.get("/")
 async def root():

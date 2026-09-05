@@ -16,6 +16,7 @@ services:
   api:
     build:
       context: backend
+    user: "1000:1000"
     ports:
       - "8000:8000"
     volumes:
@@ -30,6 +31,11 @@ services:
   worker-omnivoice:
     build:
       context: backend/workers/omnivoice
+    environment:
+      - USER=appuser
+      - LOGNAME=appuser
+      - HOME=/tmp
+      - TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor
     deploy:
       resources:
         reservations:
@@ -37,6 +43,7 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    user: "1000:1000"
     volumes:
       - ./backend:/app
     command: python /app/workers/omnivoice/omnivoice_worker.py
@@ -50,6 +57,10 @@ services:
       - breeze_models:/models
     environment:
       - BREEZE_MODEL_DIR=/models/breeze-tts-2
+      - USER=appuser
+      - LOGNAME=appuser
+      - HOME=/tmp
+      - TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor
     deploy:
       resources:
         reservations:
@@ -57,18 +68,20 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    user: "1000:1000"
     command: python /app/workers/breeze_tts/breeze_worker.py
 
   worker-whisper:
     build:
       context: backend/workers/whisper
     container_name: ab_whisper
+    user: "1000:1000"
     ports:
       - "8005:8000"
     volumes:
       - ./backend:/app
     environment:
-      - WHISPER_MODEL_SIZE=medium
+      - WHISPER_MODEL_SIZE=large-v3
       - WHISPER_DEVICE=cuda
       - WHISPER_COMPUTE_TYPE=float16
     deploy:

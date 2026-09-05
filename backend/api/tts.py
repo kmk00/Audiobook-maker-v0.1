@@ -60,16 +60,24 @@ TTS_WORKER_UNLOAD_URLS = {
     "breeze_tts": "http://worker-breeze:8003/unload",
 }
 
+WHISPER_UNLOAD_URL = "http://worker-whisper:8000/unload"
+
+def _unload_url(url: str, label: str):
+    """Zwalnia model z VRAM danego workera (leniwe ładowanie odbuduje go przy następnym żądaniu)."""
+    try:
+        requests.post(url, timeout=30)
+        print(f"[audiobook] Zwolniono VRAM: {label} ({url})")
+    except Exception as e:
+        print(f"[audiobook] Nie udało się zwolnić {label}: {e}")
+
 def unload_tts_worker(provider: str):
-    """Zwalnia model TTS z VRAM danego workera (leniwe ładowanie odbuduje go przy następnym żądaniu)."""
     url = TTS_WORKER_UNLOAD_URLS.get(provider)
     if not url:
         return
-    try:
-        requests.post(url, timeout=30)
-        print(f"[audiobook] Zwolniono VRAM workera '{provider}' ({url})")
-    except Exception as e:
-        print(f"[audiobook] Nie udało się zwolnić workera '{provider}': {e}")
+    _unload_url(url, f"worker TTS '{provider}'")
+
+def unload_whisper():
+    _unload_url(WHISPER_UNLOAD_URL, "worker-whisper")
 
 def clear_temp_directory():
     """Remove all files in the temporary audio directory."""
@@ -289,12 +297,14 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
 
         current_provider = None
         for i, task_data in enumerate(prepared_tasks):
-            # Przy zmianie modelu zwolnij VRAM wszystkich pozostałych workerów TTS —
-            # nowy model załaduje się leniwie przy pierwszym żądaniu /generate.
+            # Przy zmianie modelu zwolnij VRAM wszystkich pozostałych workerów TTS
+            # oraz whispera (potrzebny dopiero po fazie TTS) — nowe modele
+            # załadują się leniwie przy pierwszych żądaniach.
             if task_data["provider"] != current_provider:
                 for provider_name in TTS_WORKER_UNLOAD_URLS:
                     if provider_name != task_data["provider"]:
                         unload_tts_worker(provider_name)
+                unload_whisper()
                 current_provider = task_data["provider"]
 
             req = TTSRequest(
