@@ -16,35 +16,26 @@ services:
   api:
     build:
       context: backend
+    user: "1000:1000"
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
-      - worker-qwen
       - worker-omnivoice
+      - worker-breeze
       - worker-whisper
-
-  # # 3. WORKER QWEN
-  worker-qwen:
-    build:
-      context: backend/workers/qwen
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    volumes:
-      - ./backend:/app
-    command: python /app/workers/qwen/qwen_worker.py
 
   # 4. WORKER OMNIVOICE
   worker-omnivoice:
     build:
       context: backend/workers/omnivoice
+    environment:
+      - USER=appuser
+      - LOGNAME=appuser
+      - HOME=/tmp
+      - TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor
     deploy:
       resources:
         reservations:
@@ -52,20 +43,45 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    user: "1000:1000"
     volumes:
       - ./backend:/app
     command: python /app/workers/omnivoice/omnivoice_worker.py
   
+  # WORKER BREEZE TTS
+  worker-breeze:
+    build:
+      context: backend/workers/breeze_tts
+    volumes:
+      - ./backend:/app
+      - breeze_models:/models
+    environment:
+      - BREEZE_MODEL_DIR=/models/breeze-tts-2
+      - USER=appuser
+      - LOGNAME=appuser
+      - HOME=/tmp
+      - TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    user: "1000:1000"
+    command: python /app/workers/breeze_tts/breeze_worker.py
+
   worker-whisper:
     build:
       context: backend/workers/whisper
     container_name: ab_whisper
+    user: "1000:1000"
     ports:
       - "8005:8000"
     volumes:
       - ./backend:/app
     environment:
-      - WHISPER_MODEL_SIZE=medium
+      - WHISPER_MODEL_SIZE=large-v3
       - WHISPER_DEVICE=cuda
       - WHISPER_COMPUTE_TYPE=float16
     deploy:
@@ -77,33 +93,8 @@ services:
               capabilities: [gpu]
     command: python /app/workers/whisper/whisper_worker.py
     
-  # 5. WORKER HIGGS
-  worker-higgs:
-    image: lmsysorg/sglang-omni:dev
-    container_name: ab_higgs
-    stdin_open: true
-    tty: true
-    shm_size: "32g"
-    ipc: host
-    privileged: true
-    ports:
-      - "8004:8000"
-    volumes:
-      - sglang_workspace:/workspace
-      - sglang_hf_cache:/root/.cache/huggingface
-      - sglang_uv_cache:/root/.cache/uv
-      - ./backend:/workspace/app_backend:ro
-      - ./backend/workers/higgs/start.sh:/start.sh
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    entrypoint: ["/bin/zsh", "/start.sh"]
-
 volumes:
   sglang_workspace:
   sglang_hf_cache:
   sglang_uv_cache:
+  breeze_models:

@@ -44,6 +44,11 @@ const form = reactive({
   omniAccent: "",
   omniDialect: "",
 
+  breezeMode: "voice_design",
+  breezeInstruction: "",
+  breezeReferenceTranscript: "",
+  breezeCfgScale: 4,
+
   higgsLanguage: "English",
   higgsReferenceTranscript: "",
 });
@@ -196,6 +201,28 @@ const validateOmnivoiceForm = (mode) => {
   return true;
 };
 
+const validateBreezeForm = (mode) => {
+  if (!form.textToGenerate) {
+    toaster.warning("Podaj tekst do wygenerowania głosu!");
+    return false;
+  }
+  if (mode === "voice_design" && !form.breezeInstruction.trim()) {
+    toaster.warning("Opis głosu (instruction) jest wymagany!");
+    return false;
+  }
+  if (mode === "voice_cloning") {
+    if (!form.voiceToClone) {
+      toaster.warning("Wybierz głos do sklonowania!");
+      return false;
+    }
+    if (!form.breezeReferenceTranscript.trim()) {
+      toaster.warning("Podaj dokładną transkrypcję głosu referencyjnego!");
+      return false;
+    }
+  }
+  return true;
+};
+
 const validateHiggsForm = () => {
   if (!form.textToGenerate) {
     toaster.warning("Podaj tekst do wygenerowania głosu!");
@@ -259,6 +286,18 @@ const generateVoice = async () => {
       }
       break;
 
+    case "breeze_tts":
+      if (!validateBreezeForm(form.breezeMode)) return;
+      payload.mode = form.breezeMode;
+      payload.cfg_scale = form.breezeCfgScale;
+      if (form.breezeMode === "voice_design") {
+        payload.voicePrompt = form.breezeInstruction;
+      } else {
+        payload.voiceToClone = form.voiceToClone?.name || null;
+        payload.ref_text = form.breezeReferenceTranscript;
+      }
+      break;
+
     case "higgs_tts_3":
       if (!validateHiggsForm()) return;
       payload.language = form.higgsLanguage;
@@ -309,6 +348,9 @@ const saveCharacter = async () => {
 
   if (form.description) formData.append("description", form.description);
   if (form.voicePrompt) formData.append("voice_prompt", form.voicePrompt);
+  if (form.provider === "breeze_tts" && form.breezeMode === "voice_design") {
+    formData.append("voice_prompt", form.breezeInstruction);
+  }
   if (form.category) formData.append("category", form.category);
   formData.append("tags", JSON.stringify(form.tags));
 
@@ -334,6 +376,12 @@ const saveCharacter = async () => {
       options.style = form.omniStyle;
       options.accent = form.omniAccent;
       options.dialect = form.omniDialect;
+    }
+  } else if (form.provider === "breeze_tts") {
+    options.mode = form.breezeMode;
+    options.cfg_scale = form.breezeCfgScale;
+    if (form.breezeMode === "voice_cloning") {
+      options.ref_text = form.breezeReferenceTranscript;
     }
   } else if (form.provider === "higgs_tts_3") {
     options.voiceToClone = form.voiceToClone?.name || null;
@@ -494,143 +542,10 @@ onBeforeRouteLeave(async (to, from, next) => {
         Wybierz Model
         <select id="provider" v-model="form.provider" required>
           <option value="" disabled>Wybierz Model</option>
-          <!-- <option value="coqui_xtts_v2">1. XTTS</option> -->
           <option value="omnivoice">1. OMNIVOICE</option>
-          <option value="qwen_design">2. QWEN DESIGN</option>
-          <option value="qwen_custom">3. QWEN CUSTOM</option>
-          <option value="qwen_base">4. QWEN BASE</option>
-          <option value="higgs_tts_3">5. HIGGS TTS 3</option>
+          <option value="breeze_tts">2. BREEZE TTS</option>
         </select>
       </label>
-
-      <!-- <template v-if="form.provider === 'coqui_xtts_v2'">
-        <label for="xtts-lang">
-          Język (XTTS)
-          <select id="xtts-lang" v-model="form.xttsLanguage">
-            <option value="en">English (en)</option>
-            <option value="pl">Polish (pl)</option>
-            <option value="de">German (de)</option>
-            <option value="es">Spanish (es)</option>
-            <option value="fr">French (fr)</option>
-          </select>
-        </label>
-        <label for="voice-to-clone">
-          Wybierz głos do sklonowania
-          <input
-            type="file"
-            id="voice-to-clone"
-            accept="audio/*"
-            @change="handleFileUpload('voiceToClone', $event)"
-          />
-        </label>
-      </template> -->
-
-      <template v-if="form.provider === 'qwen_design'">
-        <label for="qwen-lang">
-          Język (Qwen)
-          <select id="qwen-lang" v-model="form.qwenLanguage">
-            <option value="English">English</option>
-            <option value="Chinese">Chinese</option>
-            <option value="Polish">Polish</option>
-          </select>
-        </label>
-        <label for="voice-prompt">
-          Voice Prompt (Instrukcje)
-          <textarea
-            id="voice-prompt"
-            v-model="form.voicePrompt"
-            placeholder="Np. old wise man speaking softly"
-          ></textarea>
-          <div class="prompt-examples">
-            <p class="prompt-example">Ex.</p>
-            <p class="prompt-example">gender: Male</p>
-            <p class="prompt-example">
-              pitch: Low male pitch with significant upward inflections for
-              emphasis and excitement.
-            </p>
-            <p class="prompt-example">old wise man speaking softly</p>
-            <p class="prompt-example">
-              speed: Fast-paced delivery with deliberate pauses for dramatic
-              effect.
-            </p>
-            <p class="prompt-example">
-              volume: Loud and projecting, increasing notably during moments of
-              praise and announcements.
-            </p>
-            <p class="prompt-example">age: Young adult to middle-aged adult.</p>
-            <p class="prompt-example">
-              clarity: Highly articulate and distinct pronunciation.
-            </p>
-            <p class="prompt-example">
-              fluency: Very fluent speech with no hesitations.
-            </p>
-            <p class="prompt-example">accent: British English.</p>
-            <p class="prompt-example">
-              texture: Bright and clear vocal texture.
-            </p>
-            <p class="prompt-example">
-              emotion: Enthusiastic and excited, especially when complimenting.
-            </p>
-            <p class="prompt-example">
-              tone: Upbeat, authoritative, and performative.
-            </p>
-            <p class="prompt-example">
-              personality: Confident, extroverted, and engaging.
-            </p>
-          </div>
-        </label>
-      </template>
-
-      <template v-if="form.provider === 'qwen_custom'">
-        <label for="qwen-timbre">
-          Wybierz Timbre
-          <select id="qwen-timbre" v-model="form.qwenTimbre">
-            <option value="苏瑶 Serena">苏瑶 Serena (Chinese)</option>
-            <option value="福伯 Uncle Fu">福伯 Uncle Fu (Chinese)</option>
-            <option value="十三 Vivian">十三 Vivian (Chinese)</option>
-            <option value="艾登 Aiden">艾登 Aiden (English)</option>
-            <option value="甜茶 Ryan">甜茶 Ryan (English)</option>
-            <option value="小野杏 Ono Anna">小野杏 Ono Anna (Japanese)</option>
-            <option value="素熙 Sohee">素熙 Sohee (Korean)</option>
-            <option value="晓东 Dylan">
-              晓东 Dylan (Chinese Dialect - Beijing Dialect)
-            </option>
-            <option value="程川 Eric">
-              程川 Eric (Chinese Dialect - Sichuan Dialect)
-            </option>
-          </select>
-        </label>
-        <label for="voice-prompt">
-          Voice Prompt (Instrukcje)
-          <input
-            type="text"
-            id="voice-prompt"
-            v-model="form.voicePrompt"
-            placeholder="Instrukcje generowania głosu..."
-          />
-        </label>
-      </template>
-
-      <template v-if="form.provider === 'qwen_base'">
-        <label for="voice-to-clone">
-          Wybierz głos do sklonowania
-          <input
-            type="file"
-            id="voice-to-clone"
-            accept="audio/*"
-            @change="handleFileUpload('voiceToClone', $event)"
-          />
-        </label>
-
-        <label for="qwen-base-transcript">
-          Transkrypcja głosu (Tekst referencyjny)
-          <textarea
-            id="qwen-base-transcript"
-            v-model="form.referenceTranscript"
-            placeholder="Wpisz dokładnie to, co mówi lektor w załączonym pliku audio..."
-          ></textarea>
-        </label>
-      </template>
 
       <template v-if="form.provider === 'omnivoice'">
         <label for="omni-mode">
@@ -710,56 +625,59 @@ onBeforeRouteLeave(async (to, from, next) => {
         </template>
       </template>
 
-      <template v-if="form.provider === 'higgs_tts_3'">
-        <label for="higgs-lang">
-          Język (Higgs wspiera 100+ języków)
-          <select id="higgs-lang" v-model="form.higgsLanguage">
-            <option value="English">English</option>
-            <option value="Polish">Polish</option>
-            <option value="Japanese">Japanese</option>
-            <option value="German">German</option>
-            <option value="Spanish">Spanish</option>
-            <option value="French">French</option>
-            <option value="Chinese">Chinese</option>
+      <template v-if="form.provider === 'breeze_tts'">
+        <label for="breeze-mode">
+          Tryb Breeze TTS
+          <select id="breeze-mode" v-model="form.breezeMode">
+            <option value="voice_design">Voice Design (Opis głosu)</option>
+            <option value="voice_cloning">Voice Cloning (Z pliku)</option>
           </select>
         </label>
 
-        <label for="voice-prompt">
-          Domyślne Emocje i Instrukcje
-          <input
-            type="text"
-            id="voice-prompt"
-            v-model="form.voicePrompt"
-            placeholder="np. <|emotion:amusement|><|prosody:expressive_high|>"
-          />
-          <div class="prompt-examples">
-            <p class="prompt-example" style="margin-top: 5px">
-              Możesz tu wpisać domyślne tagi Higgsa (zostaną dodane na początek
-              tekstu). Przykłady emocji: &lt;|emotion:amusement|&gt;,
-              &lt;|emotion:anger|&gt;, &lt;|emotion:sadness|&gt;. Style:
-              &lt;|style:whispering|&gt;, &lt;|style:shouting|&gt;. Prosodia:
-              &lt;|prosody:speed_fast|&gt;, &lt;|prosody:expressive_high|&gt;.
-            </p>
-          </div>
-        </label>
+        <template v-if="form.breezeMode === 'voice_design'">
+          <label for="breeze-instruction">
+            Opis głosu (instruction)
+            <textarea
+              id="breeze-instruction"
+              v-model="form.breezeInstruction"
+              placeholder="np. A warm, thoughtful young woman with a clear voice and a calm, reflective delivery."
+            ></textarea>
+          </label>
+          <p class="field-hint">
+            Wolny opis naturalnym językiem (EN lub CN). Zalecany CFG: 4.
+          </p>
+        </template>
 
-        <label for="voice-to-clone">
-          Wybierz głos do sklonowania (Opcjonalnie)
-          <input
-            type="file"
-            id="voice-to-clone"
-            accept="audio/*"
-            @change="handleFileUpload('voiceToClone', $event)"
-          />
-        </label>
+        <template v-if="form.breezeMode === 'voice_cloning'">
+          <label for="breeze-voice-to-clone">
+            Wybierz głos do sklonowania
+            <input
+              type="file"
+              id="breeze-voice-to-clone"
+              accept="audio/*"
+              @change="handleFileUpload('voiceToClone', $event)"
+            />
+          </label>
+          <label for="breeze-ref-transcript">
+            Dokładna transkrypcja referencyjna (wymagana)
+            <textarea
+              id="breeze-ref-transcript"
+              v-model="form.breezeReferenceTranscript"
+              placeholder='np. "This is the exact transcript of the reference audio."'
+            ></textarea>
+          </label>
+        </template>
 
-        <label for="higgs-base-transcript" v-if="form.voiceToClone">
-          Transkrypcja głosu klonowanego
-          <textarea
-            id="higgs-base-transcript"
-            v-model="form.higgsReferenceTranscript"
-            placeholder="Wpisz dokładnie to, co mówi lektor w powyższym nagraniu..."
-          ></textarea>
+        <label for="breeze-cfg">
+          CFG Scale (siła podążania za instrukcją)
+          <input
+            type="number"
+            id="breeze-cfg"
+            v-model.number="form.breezeCfgScale"
+            min="1"
+            max="10"
+            step="0.5"
+          />
         </label>
       </template>
 
@@ -847,6 +765,19 @@ onBeforeRouteLeave(async (to, from, next) => {
 .character-form textarea {
   height: 200px;
   max-width: 100%;
+  resize: none;
+}
+
+.field-hint {
+  margin: -12px 0 20px;
+  font-size: 0.85rem;
+  color: var(--col-brown);
+  text-align: left;
+}
+
+#breeze-instruction,
+#breeze-ref-transcript {
+  height: 90px;
   resize: none;
 }
 

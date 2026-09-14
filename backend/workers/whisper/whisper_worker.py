@@ -17,8 +17,10 @@ kontener `api` — dzięki temu ścieżki do plików audio są identyczne po obu
 stronach i nie trzeba przesyłać samych bajtów audio przez HTTP.
 """
 
+import gc
 import os
 from typing import List, Dict
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -30,11 +32,36 @@ MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "medium")
 DEVICE = os.environ.get("WHISPER_DEVICE", "cuda")
 COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
 
-app = FastAPI(title="Whisper Alignment Worker")
+model = None
 
-print(f"[whisper_worker] Ładowanie modelu '{MODEL_SIZE}' na {DEVICE} ({COMPUTE_TYPE})...")
-model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
-print("[whisper_worker] Model załadowany, gotowy do pracy.")
+
+def load_model():
+    global model
+    if model is not None:
+        return
+    print(f"[whisper_worker] Leniwe ładowanie modelu '{MODEL_SIZE}' na {DEVICE} ({COMPUTE_TYPE})...")
+    model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
+    print("[whisper_worker] Model załadowany, gotowy do pracy.")
+
+
+def unload_model():
+    global model
+    if model is None:
+        return {"status": "unloaded", "was_loaded": False}
+    model = None
+    gc.collect()
+    print("[whisper_worker] Model zwolniony, VRAM cleared.")
+    return {"status": "unloaded", "was_loaded": True}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print(f"[whisper_worker] Start (model '{MODEL_SIZE}' zostanie załadowany leniwie przy pierwszym /transcribe).")
+    yield
+    print("[whisper_worker] Shutdown - zwalnianie VRAM...")
+    unload_model()
+
+app = FastAPI(title="Whisper Alignment Worker", lifespan=lifespan)
 
 
 class TranscribeRequest(BaseModel):
@@ -44,11 +71,17 @@ class TranscribeRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": MODEL_SIZE, "device": DEVICE}
+    return {"status": "ok", "model": MODEL_SIZE, "device": DEVICE, "loaded": model is not None}
+
+
+@app.post("/unload")
+def unload():
+    return unload_model()
 
 
 @app.post("/transcribe")
 def transcribe(req: TranscribeRequest) -> Dict[str, List[Dict]]:
+    load_model()
     abs_path = os.path.abspath(req.audio_path)
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail=f"Plik audio nie istnieje w kontenerze workera: {abs_path}")

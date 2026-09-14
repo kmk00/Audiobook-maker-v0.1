@@ -75,17 +75,17 @@ def _wrap_project_in_library(fcpxml_path: str, event_name: str = "Audiobook Impo
         f.write(xml_bytes)
 
 
-def _sec_to_rt(seconds: float) -> otio.opentime.RationalTime:
-    return otio.opentime.RationalTime(round(seconds * FPS), FPS)
-
-
 def _format_srt_timestamp(seconds: float) -> str:
     if seconds < 0:
         seconds = 0
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int(round((seconds - int(seconds)) * 1000))
+    # Liczymy od milisekund (jedno zaokrąglenie) i rozbijamy divmodem —
+    # dzięki temu ms nigdy nie przekroczy 999 (wcześniej przy wartościach
+    # typu 12.9999999 powstawało nieprawidłowe "00:00:12,1000").
+    total_ms = round(seconds * 1000)
+    millis = total_ms % 1000
+    total_secs, _ = divmod(total_ms, 1000)
+    hours, rem = divmod(total_secs, 3600)
+    minutes, secs = divmod(rem, 60)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
@@ -178,27 +178,37 @@ def export_nameplates_fcpxml(
     timeline = otio.schema.Timeline(name="Nameplates")
     video_track = otio.schema.Track(name="Nameplates", kind=otio.schema.TrackKind.Video)
 
-    # Kursor śledzący, gdzie realnie jesteśmy na taśmie. Kluczowe: przerwa
-    # między KAŻDYMI dwoma kolejnymi blokami (nie tylko tam, gdzie blok sam
-    # w sobie jest narratorem) musi być jawnie wypełniona Gapem, bo inaczej
-    # OTIO układa klipy jeden za drugim bez uwzględnienia realnej ciszy
-    # między chunkami audio (Twoje 600ms między wygenerowanymi paczkami TTS).
-    cursor = 0.0
-    GAP_EPSILON = 0.02  # tolerancja na błędy zaokrągleń, żeby nie tworzyć mikro-gapów
+    # Kursor śledzący, gdzie realnie jesteśmy na taśmie — w RationalTime, aby
+    # zaokrąglenia do pełnych klatek NIE kumulowały się: gap i duracja klipa są
+    # liczone jako różnice absolutnych (jednokrotnie zaokrąglonych) czasów, więc
+    # offset każdego elementu na taśmie = dokładnie round(start*FPS), z błędem
+    # co najwyżej ±1 klatki w dowolnym miejscu timeline'u (bez dryfu narastającego).
+    cursor = otio.opentime.RationalTime(0, FPS)
+    MIN_CLIP = otio.opentime.RationalTime(1, FPS)  # min. 1 klatka
+
+    def _to_rt(seconds: float) -> otio.opentime.RationalTime:
+        return otio.opentime.RationalTime(round(seconds * FPS), FPS)
+
+    def _append_gap(duration_rt: otio.opentime.RationalTime) -> None:
+        if duration_rt.value > 0:
+            video_track.append(otio.schema.Gap(duration=duration_rt))
 
     for block in blocks:
-        block_start = max(block["start"], cursor)  # zabezpieczenie przed nakładaniem się
+        start_rt = _to_rt(block["start"])
+        end_rt = _to_rt(block["end"])
 
-        if block_start > cursor + GAP_EPSILON:
-            video_track.append(otio.schema.Gap(duration=_sec_to_rt(block_start - cursor)))
+        # zabezpieczenia: nakładanie się bloków oraz minimalna duracja
+        if start_rt < cursor:
+            start_rt = cursor
+        if end_rt < start_rt + MIN_CLIP:
+            end_rt = start_rt + MIN_CLIP
 
-        cursor = block_start
-        duration_sec = max(block["end"] - cursor, 0.05)
-        dur = _sec_to_rt(duration_sec)
+        _append_gap(start_rt - cursor)  # przerwa od poprzedniego bloku (cisza/narrator)
+        dur = end_rt - start_rt
+        cursor = end_rt
 
         if block["is_narrator"] or block["character_id"] is None:
-            video_track.append(otio.schema.Gap(duration=dur))
-            cursor += duration_sec
+            _append_gap(dur)
             continue
 
         nameplate_path = get_or_create_nameplate(
@@ -223,7 +233,6 @@ def export_nameplates_fcpxml(
             ),
         )
         video_track.append(clip)
-        cursor += duration_sec
 
     timeline.tracks.append(video_track)
 

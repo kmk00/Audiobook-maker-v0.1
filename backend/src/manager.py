@@ -2,15 +2,12 @@ from typing import Callable, Dict, Type, Optional
 from uuid import uuid4
 import os
 
-from providers.higgs_network import HiggsNetworkProvider
 from src.base_provider import BaseTTSProvider
 from src.schemas import TTSRequest, TTSResult
 
-# from src.providers.xtts2 import XTTS2Provider
-# from providers.xtts_network import XTTSNetworkProvider
-# from src.providers.qwen_tts import QwenTTSProvider
-from providers.qwentts_network import QwenNetworkProvider
+
 from providers.omnivoice_network import OmniVoiceNetworkProvider
+from providers.breeze_network import BreezeTTSNetworkProvider
 
 class TTSManager:
     def __init__(self, output_dir: str = "audiobooks/audio") -> None:
@@ -21,14 +18,8 @@ class TTSManager:
         
         # Declare available providers without instantiating them yet
         self._available_providers: Dict[str, Callable[[Optional[dict]], BaseTTSProvider]] = {
-            # "coqui_xtts_v2": lambda config: XTTSNetworkProvider(config=config),
-            
-            "qwen_design": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "provider_name": "qwen_design"}),
-            "qwen_custom": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "provider_name": "qwen_custom"}),            
-            "qwen_base": lambda config: QwenNetworkProvider(config={"model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "provider_name": "qwen_base"}),
-            
             "omnivoice": lambda config: OmniVoiceNetworkProvider(config=config),
-            "higgs_tts_3": lambda config: HiggsNetworkProvider(config=config),
+            "breeze_tts": lambda config: BreezeTTSNetworkProvider(config=config),
         }
         
         self.active_provider: Optional[str] = None

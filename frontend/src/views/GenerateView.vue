@@ -17,6 +17,11 @@ const hoveredCharacter = ref(null);
 const selectedTags = ref([]);
 const currentMode = ref("builder");
 const isDeleteMode = ref(false);
+const isEditMode = ref(false);
+const editingCharacter = ref(null);
+const editName = ref("");
+const editAvatarFile = ref(null);
+const avatarVersion = ref({});
 
 onMounted(() => {
   characterStore.fetchCharacters();
@@ -110,6 +115,60 @@ const selectCharacter = (char) => {
   }
 };
 
+const toggleEditMode = () => {
+  isEditMode.value = !isEditMode.value;
+  closeEditPopup();
+  if (isEditMode.value && isDeleteMode.value) {
+    isDeleteMode.value = false;
+  }
+};
+
+const openEditPopup = (char) => {
+  editingCharacter.value = char;
+  editName.value = char.name;
+  editAvatarFile.value = null;
+};
+
+const closeEditPopup = () => {
+  editingCharacter.value = null;
+  editAvatarFile.value = null;
+};
+
+const onEditAvatarChange = (event) => {
+  const file = event.target.files[0];
+  editAvatarFile.value = file || null;
+};
+
+const saveCharacterEdit = async () => {
+  const char = editingCharacter.value;
+  if (!char) return;
+
+  const trimmedName = editName.value.trim();
+  if (!trimmedName) {
+    toaster.warning("Nazwa postaci nie może być pusta.");
+    return;
+  }
+
+  const nameChanged = trimmedName !== char.name;
+  if (!nameChanged && !editAvatarFile.value) {
+    toaster.info("Brak zmian do zapisania.");
+    return;
+  }
+
+  const formData = new FormData();
+  if (nameChanged) formData.append("name", trimmedName);
+  if (editAvatarFile.value) formData.append("avatar_file", editAvatarFile.value);
+
+  try {
+    await characterStore.updateCharacter(char.id, formData);
+    avatarVersion.value[char.id] = Date.now();
+    toaster.success(`Postać ${trimmedName} została zaktualizowana.`);
+    closeEditPopup();
+  } catch (error) {
+    toaster.error(error.message || "Błąd podczas aktualizacji postaci.");
+  }
+};
+
 const handleCharacterClick = async (char) => {
   if (isDeleteMode.value) {
     if (
@@ -143,16 +202,33 @@ const handleCharacterClick = async (char) => {
         toaster.error(error.message);
       }
     }
+  } else if (isEditMode.value) {
+    openEditPopup(char);
   } else {
     selectCharacter(char);
   }
 };
 
-const getAvatarUrl = (path) => {
+const getAvatarUrl = (char) => {
+  const path = char.avatar_path;
   if (!path) return "/emilia.png";
   const fixedPath = path.replace("characters/", "static_characters/");
-  return `http://127.0.0.1:8000/${fixedPath}`;
+  let url = `http://127.0.0.1:8000/${fixedPath}`;
+  if (avatarVersion.value[char.id]) {
+    url += `?v=${avatarVersion.value[char.id]}`;
+  }
+  return url;
 };
+
+const editAvatarUrl = computed(() => {
+  if (editAvatarFile.value) {
+    return URL.createObjectURL(editAvatarFile.value);
+  }
+  if (editingCharacter.value) {
+    return getAvatarUrl(editingCharacter.value);
+  }
+  return "/emilia.png";
+});
 
 const displayCharacterName = computed(() => {
   if (
@@ -197,7 +273,8 @@ const displayCharacterName = computed(() => {
               :key="char.id"
               :class="{
                 active: activeCharacter && activeCharacter.id === char.id,
-                'delete-mode': isDeleteMode /* DODANO KLASE */,
+                'delete-mode': isDeleteMode,
+                'edit-mode': isEditMode,
               }"
               @click="handleCharacterClick(char)"
               @mouseover="hoveredCharacter = char"
@@ -207,13 +284,50 @@ const displayCharacterName = computed(() => {
               <div class="decor-frame frame-2"></div>
 
               <div class="avatar-inner">
-                <img :src="getAvatarUrl(char.avatar_path)" :alt="char.name" />
+                <img :src="getAvatarUrl(char)" :alt="char.name" />
               </div>
             </div>
           </div>
         </div>
       </div>
       <div class="sidebar-bottom">
+        <transition name="slide-fade">
+          <div class="edit-popup" v-if="editingCharacter">
+            <p class="edit-popup-title">EDYCJA POSTACI</p>
+
+            <div class="edit-avatar-preview">
+              <img :src="editAvatarUrl" :alt="editingCharacter.name" />
+            </div>
+
+            <label class="edit-avatar-label">
+              <input
+                type="file"
+                accept="image/*"
+                class="edit-avatar-input"
+                @change="onEditAvatarChange"
+              />
+              ZMIEŃ OBRAZ
+            </label>
+
+            <input
+              type="text"
+              class="edit-name-input"
+              placeholder="Nazwa postaci..."
+              v-model="editName"
+              @keyup.enter="saveCharacterEdit"
+            />
+
+            <div class="edit-popup-actions">
+              <button class="edit-save-btn" @click="saveCharacterEdit">
+                ZAPISZ
+              </button>
+              <button class="edit-cancel-btn" @click="closeEditPopup">
+                ANULUJ
+              </button>
+            </div>
+          </div>
+        </transition>
+
         <transition name="slide-fade">
           <div class="filter-panel" v-if="isSearchOpen">
             <input
@@ -247,6 +361,14 @@ const displayCharacterName = computed(() => {
             title="Tryb usuwania postaci"
           >
             <span style="transform: rotate(-45deg); font-size: 1.2rem">🗑️</span>
+          </button>
+
+          <button
+            :class="['toggle-edit-btn diamond-btn', { active: isEditMode }]"
+            @click="toggleEditMode"
+            title="Tryb edycji postaci"
+          >
+            <span style="transform: rotate(-45deg); font-size: 1.2rem">✏️</span>
           </button>
 
           <button
@@ -654,6 +776,140 @@ const displayCharacterName = computed(() => {
   border: 2px solid var(--col-light);
   transform: rotate(45deg) scale(1.1);
   box-shadow: 0 0 15px rgba(211, 47, 47, 0.6);
+}
+
+.toggle-edit-btn {
+  transition: all 0.3s;
+}
+
+.toggle-edit-btn.active {
+  background-color: var(--col-orange);
+  border: 2px solid var(--col-light);
+  transform: rotate(45deg) scale(1.1);
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.6);
+}
+
+.diamond-avatar.edit-mode {
+  animation: shake 2s infinite ease-in-out;
+}
+
+.diamond-avatar.edit-mode:hover .avatar-inner {
+  border-color: var(--col-orange);
+  box-shadow: 0 0 20px var(--col-orange);
+}
+
+.diamond-avatar.edit-mode:hover .frame-1,
+.diamond-avatar.edit-mode:hover .frame-2 {
+  border-color: var(--col-orange);
+}
+
+.edit-popup {
+  width: 90%;
+  background-color: var(--col-light);
+  border: 3px solid var(--col-orange);
+  border-radius: 14px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 15px;
+  box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.15);
+  align-items: center;
+}
+
+.edit-popup-title {
+  margin: 0;
+  font-family: var(--font-bitroad);
+  font-weight: bold;
+  color: var(--col-brown);
+  text-align: center;
+}
+
+.edit-avatar-preview {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--col-brown);
+  background-color: var(--col-brown);
+}
+
+.edit-avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-avatar-label {
+  font-family: var(--font-bitroad);
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: var(--col-brown);
+  border: 1px solid var(--col-brown);
+  border-radius: 15px;
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-avatar-label:hover {
+  background-color: rgba(60, 42, 33, 0.1);
+}
+
+.edit-avatar-input {
+  display: none;
+}
+
+.edit-name-input {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid var(--col-brown);
+  background-color: #fff;
+  border-radius: 10px;
+  font-family: var(--font-bitroad);
+  text-align: center;
+  font-weight: bold;
+  color: var(--col-dark);
+  box-sizing: border-box;
+}
+
+.edit-name-input:focus {
+  outline: none;
+  border-color: var(--col-orange);
+}
+
+.edit-popup-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.edit-save-btn,
+.edit-cancel-btn {
+  padding: 6px 18px;
+  border-radius: 10px;
+  border: 2px solid var(--col-brown);
+  font-family: var(--font-bitroad);
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-save-btn {
+  background-color: var(--col-brown);
+  color: var(--col-light);
+}
+
+.edit-save-btn:hover {
+  box-shadow: 0 0 10px rgba(60, 42, 33, 0.5);
+}
+
+.edit-cancel-btn {
+  background-color: transparent;
+  color: var(--col-brown);
+}
+
+.edit-cancel-btn:hover {
+  background-color: rgba(60, 42, 33, 0.1);
 }
 
 .diamond-avatar.delete-mode {

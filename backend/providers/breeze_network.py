@@ -1,30 +1,32 @@
 import requests
-import os
 from src.schemas import TTSRequest, TTSResult
 from src.base_provider import BaseTTSProvider
 
-class QwenNetworkProvider(BaseTTSProvider):
+
+class BreezeTTSNetworkProvider(BaseTTSProvider):
     @property
     def provider_name(self) -> str:
-        return str(self.config.get("provider_name", "qwen_network"))
-    
+        return "breeze_network"
+
     def setup(self):
-        self.model_id = self.config.get("model_id")
-        self.worker_url = "http://worker-qwen:8001/generate"
-        print(f"[{self.provider_name}] Provider setup complete with model_id: {self.model_id} and worker URL: {self.worker_url}")
+        self.worker_url = "http://worker-breeze:8003/generate"
+        print(f"[{self.provider_name}] Provider setup complete with worker URL: {self.worker_url}")
 
     def generate(self, request: TTSRequest, output_path: str) -> TTSResult:
-        print(f"[{self.provider_name}] Generating audio for text: '{request.text[:30]}...' with model_id: {self.model_id}")
+        print(f"[{self.provider_name}] Generating audio for text: '{request.text[:30]}...'")
+
+        # Per-line direction (from `<<...>>` markup) takes precedence over the
+        # character's default voice_prompt / instruction.
+        instruction = request.options.get("direction") or request.voice_prompt
 
         payload = {
-            "model_id": self.model_id,
             "text": request.text,
             "output_path": output_path,
-            "language": request.options.get("language", "Auto"),
-            "voice_prompt": request.voice_prompt,
-            "voice_path": request.voice_path,
+            "ref_audio": request.voice_path,
             "ref_text": request.options.get("ref_text"),
-            "speaker": request.options.get("speaker", "Vivian")
+            "instruction": instruction,
+            "cfg_scale": request.options.get("cfg_scale", 4.0),
+            "seed": request.options.get("seed", 42),
         }
 
         try:

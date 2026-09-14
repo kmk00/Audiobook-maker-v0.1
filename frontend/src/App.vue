@@ -5,6 +5,7 @@
         <router-link to="/" class="nav-btn">GENEROWANIE</router-link>
         <router-link to="/postacie" class="nav-btn">POSTACIE</router-link>
         <router-link to="/tlumaczenie" class="nav-btn">TŁUMACZENIE</router-link>
+        <router-link to="/davinci" class="nav-btn">DAVINCI RESOLVE</router-link>
       </div>
       <div class="v-line"></div>
     </header>

@@ -2,6 +2,7 @@ import re
 import subprocess
 from typing import Any, List, Optional
 import traceback
+import requests
 from .alignment import (
     get_audio_duration_seconds,
     normalize_audio_format,
@@ -23,6 +24,7 @@ from db import models
 from db.database import get_db
 from src.manager import TTSManager
 from src.schemas import TTSRequest, TTSResult
+from src.direction import extract_direction
 
 router = APIRouter(
     prefix="/tts",
@@ -53,6 +55,30 @@ NAMEPLATE_CACHE_DIR = "audiobooks/nameplates"
 os.makedirs(NAMEPLATE_CACHE_DIR, exist_ok=True)
 tasks_db = {}
 
+TTS_WORKER_UNLOAD_URLS = {
+    "omnivoice": "http://worker-omnivoice:8002/unload",
+    "breeze_tts": "http://worker-breeze:8003/unload",
+}
+
+WHISPER_UNLOAD_URL = "http://worker-whisper:8000/unload"
+
+def _unload_url(url: str, label: str):
+    """Zwalnia model z VRAM danego workera (leniwe ładowanie odbuduje go przy następnym żądaniu)."""
+    try:
+        requests.post(url, timeout=30)
+        print(f"[audiobook] Zwolniono VRAM: {label} ({url})")
+    except Exception as e:
+        print(f"[audiobook] Nie udało się zwolnić {label}: {e}")
+
+def unload_tts_worker(provider: str):
+    url = TTS_WORKER_UNLOAD_URLS.get(provider)
+    if not url:
+        return
+    _unload_url(url, f"worker TTS '{provider}'")
+
+def unload_whisper():
+    _unload_url(WHISPER_UNLOAD_URL, "worker-whisper")
+
 def clear_temp_directory():
     """Remove all files in the temporary audio directory."""
     if os.path.exists(TEMP_AUDIO_DIR):
@@ -65,12 +91,8 @@ def clear_temp_directory():
                 pass
 
 tts_manager = TTSManager(output_dir=TEMP_AUDIO_DIR)
-# tts_manager.load_provider("coqui_xtts_v2")
-tts_manager.load_provider("qwen_custom")
-tts_manager.load_provider("qwen_design")
-tts_manager.load_provider("qwen_base")
 tts_manager.load_provider("omnivoice")
-tts_manager.load_provider("higgs_tts_3")
+tts_manager.load_provider("breeze_tts")
 
 def split_into_chunks(text: str, max_chars: int = 1200) -> List[str]:
     """Tnie tekst na zgrabne paczki bez ucinania zdań wpół."""
@@ -161,21 +183,41 @@ def start_audiobook_generation(
     task_id = uuid4().hex
     
 
+    # Mapa: character_id -> provider (cache, by nie dublować zapytań do DB)
+    provider_cache = {}
+
+    def resolve_provider(char_id: Optional[int]) -> str:
+        if char_id is None:
+            return "omnivoice"
+        if char_id not in provider_cache:
+            character = db.query(models.Character).filter(models.Character.id == char_id).first()
+            provider_cache[char_id] = (character.provider or "omnivoice") if character else "omnivoice"
+        return provider_cache[char_id]
+
     tasks = []
     for block_idx, block in enumerate(payload.blocks):
         text = block.text.strip()
         if not text: continue
-            
+
+        # Usuń znaczniki kierunku `<<...>>` i zapamiętaj kierunek dla całego bloku
+        text, direction, direction_cfg = extract_direction(text)
+        if not text: continue
+
         chunks = split_into_chunks(text, max_chars=1200)
         for chunk_idx, chunk_text in enumerate(chunks):
             tasks.append({
                 "global_index": (block_idx, chunk_idx),
                 "char_id": block.character_id,
-                "text": chunk_text
+                "text": chunk_text,
+                "direction": direction,
+                "direction_cfg": direction_cfg,
+                "provider": resolve_provider(block.character_id),
             })
 
 
-    tasks.sort(key=lambda x: x["char_id"] if x["char_id"] is not None else -1)
+    # Grupuj zadania po modelu (providerze), zachowując oryginalną kolejność w ramach modelu.
+    # Finalna kolejność jest odtwarzana później dzięki global_index.
+    tasks.sort(key=lambda x: (x["provider"], x["global_index"]))
 
 
     prepared_tasks = []
@@ -186,19 +228,25 @@ def start_audiobook_generation(
             character: Any = db.query(models.Character).filter(models.Character.id == char_id).first()
             if not character: continue 
                 
-            provider = character.provider or "omnivoice"
+            provider = task["provider"]
             voice_path = character.voice_path
             voice_prompt = character.voice_prompt
             
             options_dict = character.provider_options or {}
             if not isinstance(options_dict, dict): options_dict = {}
+            options_dict = dict(options_dict)
             if character.language and "language" not in options_dict:
                 options_dict["language"] = character.language
         else:
-            provider = "omnivoice" 
+            provider = "omnivoice"
             voice_path = None
             voice_prompt = None
             options_dict = {}
+
+        if task.get("direction"):
+            options_dict["direction"] = task["direction"]
+        if task.get("direction_cfg"):
+            options_dict["cfg_scale"] = task["direction_cfg"]
 
         prepared_tasks.append({
             "global_index": task["global_index"],
@@ -247,7 +295,18 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
         generated_audio_files = []
         task_lookup = {t["global_index"]: t for t in prepared_tasks}
 
+        current_provider = None
         for i, task_data in enumerate(prepared_tasks):
+            # Przy zmianie modelu zwolnij VRAM wszystkich pozostałych workerów TTS
+            # oraz whispera (potrzebny dopiero po fazie TTS) — nowe modele
+            # załadują się leniwie przy pierwszych żądaniach.
+            if task_data["provider"] != current_provider:
+                for provider_name in TTS_WORKER_UNLOAD_URLS:
+                    if provider_name != task_data["provider"]:
+                        unload_tts_worker(provider_name)
+                unload_whisper()
+                current_provider = task_data["provider"]
+
             req = TTSRequest(
                 text=task_data["text"],
                 provider=task_data["provider"],
@@ -315,10 +374,13 @@ def process_audiobook_task(task_id: str, prepared_tasks: list, generate_timeline
 
         concat_file_path = os.path.join(TEMP_AUDIO_DIR, f"concat_{task_id}.txt")
         with open(concat_file_path, "w", encoding="utf-8") as f:
-            for _, filepath in generated_audio_files:
+            for idx, (_, filepath) in enumerate(generated_audio_files):
                 abs_filepath = os.path.abspath(filepath).replace("\\", "/")
                 f.write(f"file '{abs_filepath}'\n")
-                f.write(f"file '{silence_path}'\n")
+                # Cisza tylko MIĘDZY chunkami (nie po ostatnim) — spójnie z
+                # liczeniem cumulative_time w timeline'ie.
+                if idx < len(generated_audio_files) - 1:
+                    f.write(f"file '{silence_path}'\n")
 
         final_filename = f"audiobook_{task_id}.wav"
         final_filepath = os.path.join(OUTPUT_AUDIO_DIR, final_filename)

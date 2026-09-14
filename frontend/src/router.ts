@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import GenerateView from "./views/GenerateView.vue";
 import CharactersView from "./views/CharacterView.vue";
 import TranslateView from "./views/TranslateView.vue";
+import DaVinciView from "./views/DaVinciView.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,6 +21,11 @@ const router = createRouter({
       path: "/tlumaczenie",
       name: "tlumaczenie",
       component: TranslateView,
+    },
+    {
+      path: "/davinci",
+      name: "davinci",
+      component: DaVinciView,
     },
   ],
 });
